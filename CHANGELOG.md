@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file. This projec
 
 ### Added
 
+- The README **Quick start** and `docs/getting-started.md` now explain how to download a prebuilt binary from the latest GitHub Release (asset names per platform, extraction, PATH install and the macOS quarantine note) as the recommended path, with `cargo install --path .` / `cargo build --release` as the from-source alternative.
 - Project logo in `assets/` (light/dark SVG pair plus a social preview image). The README shows the logo with a `prefers-color-scheme` switch and the home page inlines it as SVG, following the browser theme without any external asset.
 - Release workflow (`.github/workflows/release.yml`): pushing a `v*` tag publishes a GitHub Release with `keyfob` binaries for x86_64 Linux, x86_64 Windows, and x86_64/aarch64 macOS (`.tar.gz`, Windows `.zip`) and source archives (`.tar.gz`, `.zip`), after checking that the tag matches the crate version.
 

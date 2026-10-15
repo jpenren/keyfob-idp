@@ -84,8 +84,29 @@ See [`docs/configuration.md`](configuration.md) for every key, or the annotated
 
 ## Install and run
 
-The crate is `publish = false`, so build it from source with a stable Rust
-toolchain:
+The quickest way is to download a prebuilt binary from the
+[latest release](https://github.com/jpenren/keyfob-idp/releases/latest)
+(`keyfob-<tag>-x86_64-unknown-linux-gnu.tar.gz`,
+`keyfob-<tag>-x86_64-pc-windows-msvc.zip`,
+`keyfob-<tag>-aarch64-apple-darwin.tar.gz` or
+`keyfob-<tag>-x86_64-apple-darwin.tar.gz`; `<tag>` is the release tag, e.g.
+`v0.1.0`). Each archive holds the `keyfob` binary, the example configurations,
+the README and the licences:
+
+```sh
+TAG=v0.1.0
+curl -LO "https://github.com/jpenren/keyfob-idp/releases/download/$TAG/keyfob-$TAG-x86_64-unknown-linux-gnu.tar.gz"
+tar -xzf "keyfob-$TAG-x86_64-unknown-linux-gnu.tar.gz"
+install -m 755 "keyfob-$TAG-x86_64-unknown-linux-gnu/keyfob" ~/.local/bin/keyfob
+# the archive also ships the example configurations:
+keyfob run --config "keyfob-$TAG-x86_64-unknown-linux-gnu/keyfob.minimal.yaml"
+```
+
+On macOS the binaries are not notarised: extract the archive, then right-click →
+*Open* (or `xattr -d com.apple.quarantine keyfob`) once.
+
+Alternatively build from source with a stable Rust toolchain. The crate is
+`publish = false`:
 
 ```sh
 # Run directly from the repository.
