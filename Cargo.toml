@@ -31,7 +31,9 @@ minijinja = { version = "3.0.1", features = ["json", "serde"] }
 notify = "8.2.0"
 rand = "0.10"
 rcgen = "0.14.10"
-rsa = { version = "0.9.10", features = ["pem"] }
+# `getrandom` exposes `rsa::rand_core::OsRng`, the OS-backed RNG required by RSA
+# key generation (rsa 0.9 uses rand_core 0.6, not the `rand` 0.10 generator).
+rsa = { version = "0.9.10", features = ["pem", "getrandom"] }
 # rustls with the ring provider: avoids the aws-lc-rs C toolchain requirement.
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
 serde = { version = "1.0.229", features = ["derive"] }

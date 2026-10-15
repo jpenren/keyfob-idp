@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file. This projec
 
 ### Changed
 
+- Updated `rand` to 0.10 (`rand::rng()`, `rand::fill`, `rand::distr::Alphanumeric`); RSA key generation keeps using the OS-backed `rand_core` 0.6 generator via `rsa::rand_core::OsRng`, now enabled explicitly with the `getrandom` feature of `rsa`.
 - Example configurations (`examples/keyfob.minimal.yaml`, `examples/keyfob.full.yaml`) and the file written by `keyfob init` now include Keycloak-compatible `realm_access.roles` and `resource_access.<client_id>.roles` claims.
 
 ## [0.1.0] - 2026-10-15

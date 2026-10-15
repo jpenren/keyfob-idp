@@ -2,13 +2,13 @@
 
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use rand::Rng;
-use rand::distributions::Alphanumeric;
+use rand::RngExt as _;
+use rand::distr::Alphanumeric;
 
 /// Random base64url string with `bytes` bytes of entropy (no padding).
 pub fn random_token_bytes(bytes: usize) -> String {
     let mut buffer = vec![0_u8; bytes];
-    rand::rngs::OsRng.fill(&mut buffer[..]);
+    rand::fill(&mut buffer[..]);
     URL_SAFE_NO_PAD.encode(buffer)
 }
 
@@ -19,7 +19,7 @@ pub fn random_token() -> String {
 
 /// Alphanumeric string of `len` characters (authorization codes, session ids).
 pub fn random_string(len: usize) -> String {
-    rand::thread_rng()
+    rand::rng()
         .sample_iter(&Alphanumeric)
         .take(len)
         .map(char::from)

@@ -117,7 +117,11 @@ impl KeySet {
             return Err(KeyError::UnsupportedAlgorithm(format!("{algorithm:?}")));
         }
 
-        let private = RsaPrivateKey::new(&mut rand::rngs::OsRng, bits)
+        // `rsa` 0.9 is built on `rand_core` 0.6, whose OS-backed generator is
+        // `rand_core::OsRng` (re-exported as `rsa::rand_core`); the `rand` 0.10
+        // `rng`/`SysRng` types use the incompatible `rand_core` 0.10 traits.
+        let mut rng = rsa::rand_core::OsRng;
+        let private = RsaPrivateKey::new(&mut rng, bits)
             .map_err(|err| KeyError::Generate(err.to_string()))?;
         Self::from_private_key(private, algorithm)
     }
