@@ -1,0 +1,60 @@
+[package]
+name = "keyfob-idp"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+description = "A local OAuth 2.0 / OpenID Connect identity provider for development"
+readme = "README.md"
+keywords = ["oauth", "oidc", "authentication", "development", "identity"]
+categories = ["web-programming", "authentication"]
+publish = false
+
+autobins = false
+
+[lib]
+name = "keyfob_idp"
+path = "src/lib.rs"
+
+[[bin]]
+name = "keyfob"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0.104"
+argon2 = "0.6.0"
+axum = "0.8.9"
+axum-server = { version = "0.8.0", default-features = false, features = ["tls-rustls-no-provider"] }
+base64 = "0.23.1"
+clap = { version = "4.6.7", features = ["derive", "env"] }
+jsonwebtoken = { version = "11.1.0", features = ["rust_crypto", "use_pem"] }
+minijinja = { version = "3.0.1", features = ["json", "serde"] }
+notify = "8.2.0"
+rand = "0.8"
+rcgen = "0.14.10"
+rsa = { version = "0.9.10", features = ["pem"] }
+# rustls with the ring provider: avoids the aws-lc-rs C toolchain requirement.
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+serde_path_to_error = "0.1"
+serde_yaml_ng = "0.10.0"
+sha2 = "0.11.1"
+subtle = "2.6.1"
+thiserror = "2.0.21"
+time = { version = "0.3.55", features = ["formatting", "parsing", "serde"] }
+tokio = { version = "1.53.3", features = ["rt-multi-thread", "macros", "net", "signal", "sync", "time"] }
+tower-http = { version = "0.7.1", features = ["cors"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
+uuid = { version = "1.28.0", features = ["v4", "serde"] }
+
+[dev-dependencies]
+reqwest = { version = "0.13.5", default-features = false, features = ["json", "cookies", "query", "form", "rustls-no-provider"] }
+tempfile = "3.27.0"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

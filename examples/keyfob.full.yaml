@@ -1,0 +1,120 @@
+# keyfob.full.yaml — every option, with the defaults shown as comments.
+#
+#   keyfob validate --config examples/keyfob.full.yaml
+#   keyfob run      --config examples/keyfob.full.yaml
+#
+# keyfob-idp is a development tool. Never expose it to untrusted networks.
+
+# ---------------------------------------------------------------- server
+server:
+  host: 127.0.0.1          # default; anything else logs a prominent warning
+  port: 9000               # default
+  # issuer: http://localhost:9000   # deduced from host and port when omitted
+  tls: false               # serve HTTPS with an auto-generated self-signed cert
+
+# ------------------------------------------------------------ signing key
+keys:
+  algorithm: RS256         # only RS256 is supported
+  persist: true            # write the key to `path` so restarts keep tokens valid
+  path: .keyfob/keys.json  # default; created with mode 0600 on Unix
+
+# ----------------------------------------------------------------- tokens
+tokens:
+  access_ttl: 15m          # access token lifetime
+  refresh_ttl: 8h          # refresh token (and session) lifetime
+  id_ttl: 15m              # ID token lifetime
+  rotate_refresh: true     # issue a new refresh token on every refresh
+
+# --------------------------------------------------------------------- ui
+ui:
+  enabled: true            # home page and token generator at /
+  prefill_secrets: false   # dev only: prefill client secrets in the form
+
+# ------------------------------------------------------------------ login
+login:
+  mode: form               # form | picker | auto
+  # template_dir: ./templates   # override login.html / error.html from disk
+  # default_user: alice         # user used by `auto` and by auto_approve clients
+
+# ------------------------------------------------------------------- cors
+cors:
+  enabled: false           # send CORS headers for browser SPAs on another origin
+  origins: ["*"]           # with allow_credentials: true, "*" reflects the origin
+  allow_credentials: false
+
+# ----------------------------------------------------------- diagnostics
+debug: false               # expose GET /debug/tokens with recently issued tokens
+allow_password_grant: false # enable the deprecated Resource Owner Password grant
+
+# ---------------------------------------------------------------- clients
+clients:
+  # Public single-page application: no secret, PKCE (S256) is mandatory.
+  - client_id: my-spa
+    public: true
+    redirect_uris:
+      - http://localhost:3000/callback
+      - http://localhost:3000/silent-renew
+    post_logout_redirect_uris:
+      - http://localhost:3000
+    allowed_scopes: [openid, profile, email, offline_access]
+    # grant_types defaults to [authorization_code, refresh_token] for a client
+    # with redirect URIs.
+    audience: []           # access-token `aud`; defaults to [client_id]
+    auto_approve: false    # skip the login screen (uses login.default_user)
+
+  # Confidential backend: a secret, machine-to-machine and refresh.
+  - client_id: my-backend
+    client_secret: dev-secret
+    grant_types: [client_credentials, refresh_token]
+    allowed_scopes: [openid, profile]
+    audience: [my-api]
+
+  # Web application doing the full code flow server-side.
+  - client_id: my-web
+    client_secret: web-secret
+    redirect_uris:
+      - http://localhost:8080/login/oauth2/code/keyfob
+    post_logout_redirect_uris:
+      - http://localhost:8080
+    grant_types: [authorization_code, refresh_token]
+    allowed_scopes: [openid, profile, email, offline_access]
+
+# ------------------------------------------------------------------ users
+# Users are only required by flows that authenticate a person (authorization
+# code, password and interactive login).
+users:
+  - username: alice
+    password: alice123      # plaintext, or an argon2 hash ($argon2...) from
+                            # `keyfob hash-password`
+    email: alice@example.test
+    name: Alice Doe
+    roles: [admin, user]      # keyfob-native flat `roles` claim
+    groups: [engineering]
+    claims:
+      # Values may be minijinja templates rendered with the user as context.
+      department: engineering
+      email_domain: "{{ email | default('example.test') }}"
+      # Keycloak-compatible roles. Clients written against Keycloak read realm
+      # roles from `realm_access.roles` and per-client roles from
+      # `resource_access.<client_id>.roles` instead of the flat `roles` claim.
+      # Nested values pass through unchanged; only top-level strings are templated.
+      realm_access:
+        roles: [admin, user]
+      resource_access:
+        my-spa:
+          roles: [admin]
+        my-web:
+          roles: [user]
+
+  - username: bob
+    password: bob123
+    email: bob@example.test
+    name: Bob Roe
+    roles: [user]
+    groups: [engineering]
+    claims:
+      realm_access:
+        roles: [user]
+      resource_access:
+        my-spa:
+          roles: [user]

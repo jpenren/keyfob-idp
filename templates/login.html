@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · keyfob-idp</title>
+  <style>
+    :root { color-scheme: light dark; --bg:#f6f7f9; --card:#fff; --fg:#1c1e21; --muted:#6b7280; --border:#e3e5e8; --accent:#2563eb; --danger:#b91c1c; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg:#111418; --card:#181c21; --fg:#e8eaed; --muted:#9aa4b2; --border:#2a2f36; --accent:#5b8def; --danger:#f87171; }
+    }
+    * { box-sizing: border-box; }
+    body { margin:0; min-height:100vh; display:grid; place-items:center; background:var(--bg); color:var(--fg);
+           font:16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; padding:24px; }
+    .card { width:100%; max-width:420px; background:var(--card); border:1px solid var(--border); border-radius:12px; padding:24px; }
+    h1 { margin:0 0 4px; font-size:22px; }
+    .muted { color:var(--muted); font-size:14px; margin:0 0 16px; }
+    .client { font-size:14px; margin:0 0 16px; }
+    code { background:rgba(127,127,127,.15); padding:1px 5px; border-radius:4px; font-size:13px; }
+    form { display:grid; gap:12px; }
+    label { display:grid; gap:4px; font-size:14px; }
+    input { padding:9px 11px; border:1px solid var(--border); border-radius:8px; background:transparent; color:inherit; font-size:15px; }
+    input:focus { outline:2px solid var(--accent); outline-offset:0; border-color:transparent; }
+    button { font:inherit; cursor:pointer; }
+    .primary { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:10px 14px; font-weight:600; }
+    .users { display:grid; gap:8px; }
+    .user { display:flex; align-items:center; gap:12px; width:100%; text-align:left; padding:10px 12px;
+            background:transparent; color:inherit; border:1px solid var(--border); border-radius:10px; }
+    .user:hover { border-color:var(--accent); }
+    .user span { display:flex; flex-direction:column; }
+    .avatar { display:grid; place-items:center; width:34px; height:34px; border-radius:50%; background:var(--accent);
+              color:#fff; font-weight:700; text-transform:uppercase; }
+    .error { background:color-mix(in srgb, var(--danger) 12%, transparent); border:1px solid var(--danger);
+             color:var(--danger); border-radius:8px; padding:9px 12px; font-size:14px; margin:0 0 16px; }
+    footer { margin-top:20px; border-top:1px solid var(--border); padding-top:12px; font-size:12px; color:var(--muted); }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>Sign in</h1>
+    <p class="muted">keyfob-idp · local development only</p>
+
+    {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+    <p class="client">
+      <strong>{{ client_id }}</strong> is requesting access{% if scopes %} to <code>{{ scopes }}</code>{% endif %}.
+    </p>
+
+    <form method="post" action="/login">
+      <input type="hidden" name="return_to" value="{{ return_to }}">
+      {% if mode == "picker" %}
+        <p class="muted">Pick a user. Passwords are not required in picker mode.</p>
+        <div class="users">
+          {% for user in users %}
+            <button class="user" type="submit" name="username" value="{{ user.username }}">
+              <span class="avatar" aria-hidden="true">{{ user.username|first|upper }}</span>
+              <span>
+                <strong>{{ user.username }}</strong>
+                {% if user.name %}<span class="muted">{{ user.name }}</span>{% endif %}
+              </span>
+            </button>
+          {% endfor %}
+        </div>
+      {% else %}
+        <label>Username
+          <input name="username" autocomplete="username" autofocus required spellcheck="false">
+        </label>
+        <label>Password
+          <input type="password" name="password" autocomplete="current-password" required>
+        </label>
+        <button class="primary" type="submit">Sign in</button>
+        {% if users %}
+          <p class="muted">Configured users:
+            {% for user in users %}<code>{{ user.username }}</code>{% if not loop.last %}, {% endif %}{% endfor %}
+          </p>
+        {% endif %}
+      {% endif %}
+    </form>
+
+    <footer>
+      This server is a development tool. Never use it in production and never store real
+      credentials in its configuration. Templates can be customised with
+      <code>login.template_dir</code>.
+    </footer>
+  </main>
+</body>
+</html>

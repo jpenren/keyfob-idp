@@ -1,0 +1,13 @@
+# Build context exclusions. `templates/` must stay: the HTML is embedded at
+# compile time with `include_str!`.
+/target
+.git
+.github
+.keyfob
+docs
+examples
+tests
+docker
+.env
+# The Spanish design guide and top-level markdown are not needed to build.
+Keyfob*.md

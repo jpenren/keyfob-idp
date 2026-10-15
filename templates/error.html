@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Request failed · keyfob-idp</title>
+  <style>
+    :root { color-scheme: light dark; --bg:#f6f7f9; --card:#fff; --fg:#1c1e21; --muted:#6b7280; --border:#e3e5e8; --danger:#b91c1c; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg:#111418; --card:#181c21; --fg:#e8eaed; --muted:#9aa4b2; --border:#2a2f36; --danger:#f87171; }
+    }
+    * { box-sizing: border-box; }
+    body { margin:0; min-height:100vh; display:grid; place-items:center; background:var(--bg); color:var(--fg);
+           font:16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; padding:24px; }
+    .card { width:100%; max-width:520px; background:var(--card); border:1px solid var(--border); border-radius:12px; padding:24px; }
+    h1 { margin:0 0 12px; font-size:20px; }
+    .code { display:inline-block; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:13px;
+            color:var(--danger); border:1px solid var(--danger); border-radius:6px; padding:2px 8px; margin-bottom:12px; }
+    p { margin:0 0 12px; }
+    .hint { color:var(--muted); font-size:14px; border-top:1px solid var(--border); padding-top:12px; margin-top:16px; }
+    code { background:rgba(127,127,127,.15); padding:1px 5px; border-radius:4px; font-size:13px; }
+    a { color:inherit; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <span class="code">{{ error }}</span>
+    <h1>Request failed</h1>
+    <p>{{ description }}</p>
+    {% if hint %}<p class="hint">{{ hint }}</p>{% endif %}
+    <p class="hint">
+      keyfob-idp is a development OAuth 2.0 / OIDC provider. Check the server log for the
+      matching reason; every rejection is logged with its cause.
+    </p>
+  </main>
+</body>
+</html>

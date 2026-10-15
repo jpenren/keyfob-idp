@@ -1,0 +1,775 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>keyfob-idp · development identity provider</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f6f7f9; --card: #fff; --fg: #1c1e21; --muted: #6b7280;
+      --border: #e3e5e8; --accent: #2563eb; --accent-fg: #fff;
+      --danger: #b91c1c; --danger-bg: #fee2e2; --warn: #92400e; --warn-bg: #fef3c7;
+      --ok: #15803d; --ok-bg: #dcfce7; --code-bg: rgba(127,127,127,.12);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111418; --card: #181c21; --fg: #e8eaed; --muted: #9aa4b2;
+        --border: #2a2f36; --accent: #5b8def; --accent-fg: #0b0d10;
+        --danger: #f87171; --danger-bg: #3f1d1d; --warn: #fbbf24; --warn-bg: #3a2e12;
+        --ok: #4ade80; --ok-bg: #14321f;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--fg);
+      font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    header.top {
+      padding: 20px 24px 8px; max-width: 980px; margin: 0 auto;
+      display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px;
+    }
+    header.top h1 { margin: 0; font-size: 20px; }
+    header.top .version { color: var(--muted); font-size: 13px; }
+    main { max-width: 980px; margin: 0 auto; padding: 8px 24px 64px; }
+    section { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin: 16px 0; }
+    h2 { font-size: 15px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 14px; }
+    h3 { font-size: 14px; margin: 18px 0 8px; }
+    p { margin: 0 0 10px; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code, pre, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    code { background: var(--code-bg); padding: 1px 5px; border-radius: 5px; font-size: 13px; }
+    pre { background: var(--code-bg); padding: 12px; border-radius: 8px; overflow: auto; font-size: 12.5px; margin: 0; white-space: pre-wrap; word-break: break-all; }
+    .banner { border-radius: 10px; padding: 10px 14px; margin: 12px 0; font-size: 13.5px; }
+    .banner.dev { background: var(--warn-bg); color: var(--warn); font-weight: 500; }
+    .banner.error { background: var(--danger-bg); color: var(--danger); }
+    .banner.warn { background: var(--warn-bg); color: var(--warn); }
+    .banner.ok { background: var(--ok-bg); color: var(--ok); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 24px; }
+    .kv { display: flex; gap: 8px; font-size: 13.5px; min-width: 0; }
+    .kv .k { color: var(--muted); flex: 0 0 auto; }
+    .kv .v { word-break: break-all; min-width: 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; }
+    .links { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+    .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+    .tab {
+      border: 1px solid var(--border); background: transparent; color: var(--fg);
+      padding: 7px 12px; border-radius: 8px; cursor: pointer; font-size: 13.5px;
+    }
+    .tab[aria-selected="true"] { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+    .panel { display: none; }
+    .panel.active { display: block; }
+    label { display: block; font-size: 12.5px; color: var(--muted); margin: 12px 0 4px; }
+    input, select, textarea {
+      width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+      background: var(--bg); color: var(--fg); font: inherit; font-size: 13.5px;
+    }
+    textarea { font-family: ui-monospace, Menlo, Consolas, monospace; resize: vertical; }
+    button.primary {
+      margin-top: 14px; background: var(--accent); color: var(--accent-fg); border: 0;
+      padding: 9px 16px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500;
+    }
+    button.small { padding: 4px 9px; font-size: 12px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--fg); cursor: pointer; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+    .row > div { flex: 1 1 180px; min-width: 0; }
+    .pill { font-size: 11.5px; border-radius: 999px; padding: 1px 8px; border: 1px solid var(--border); color: var(--muted); }
+    .pill.deprecated { color: var(--warn); border-color: var(--warn); }
+    .token-block { margin: 14px 0; }
+    .token-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+    .token-head strong { font-size: 13px; }
+    details { margin: 8px 0; }
+    summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+    .muted { color: var(--muted); }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+    footer { max-width: 980px; margin: 0 auto; padding: 0 24px 40px; color: var(--muted); font-size: 12.5px; }
+    .toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 8px 16px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+    .toast.show { opacity: .95; }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <h1>keyfob-idp</h1>
+    <span class="version" id="version">v{{ version }}</span>
+  </header>
+
+  <main>
+    <div class="banner dev">keyfob-idp is a development tool. Never expose it to untrusted networks and never use it in production.</div>
+    <div id="notices"></div>
+
+    <!-- ---------------------------------------------------- server info -->
+    <section id="info-section">
+      <h2>Server</h2>
+      <div id="info-body" class="muted">Loading server information…</div>
+    </section>
+
+    <!-- --------------------------------------------- token generator -->
+    <section id="generator-section">
+      <h2>Token generator</h2>
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" data-panel="cc" aria-selected="true">Client credentials</button>
+        <button class="tab" role="tab" data-panel="pw" aria-selected="false">Username + password</button>
+        <button class="tab" role="tab" data-panel="ac" aria-selected="false">Authorization code + PKCE</button>
+        <button class="tab" role="tab" data-panel="rf" aria-selected="false">Refresh token</button>
+      </div>
+
+      <!-- client credentials -->
+      <div class="panel active" id="panel-cc" role="tabpanel">
+        <div class="row">
+          <div><label for="cc-client">Client</label><select id="cc-client"></select></div>
+          <div><label for="cc-secret">Client secret</label><input id="cc-secret" type="password" autocomplete="off" placeholder="required for confidential clients"></div>
+        </div>
+        <label for="cc-scope">Scopes (space separated)</label>
+        <input id="cc-scope" autocomplete="off">
+        <button class="primary" id="cc-run">Request token</button>
+      </div>
+
+      <!-- password -->
+      <div class="panel" id="panel-pw" role="tabpanel">
+        <p class="muted" id="pw-note"></p>
+        <div class="row">
+          <div><label for="pw-client">Client</label><select id="pw-client"></select></div>
+          <div><label for="pw-secret">Client secret</label><input id="pw-secret" type="password" autocomplete="off" placeholder="required for confidential clients"></div>
+        </div>
+        <div class="row">
+          <div><label for="pw-user">User</label><select id="pw-user"></select></div>
+          <div><label for="pw-password">Password</label><input id="pw-password" type="password" autocomplete="off"></div>
+        </div>
+        <label for="pw-scope">Scopes (space separated)</label>
+        <input id="pw-scope" autocomplete="off">
+        <button class="primary" id="pw-run">Request token</button>
+      </div>
+
+      <!-- authorization code -->
+      <div class="panel" id="panel-ac" role="tabpanel">
+        <div class="row">
+          <div><label for="ac-client">Client</label><select id="ac-client"></select></div>
+          <div><label for="ac-nonce">Nonce (optional)</label><input id="ac-nonce" autocomplete="off"></div>
+        </div>
+        <label for="ac-scope">Scopes (space separated)</label>
+        <input id="ac-scope" autocomplete="off">
+        <p class="muted" id="ac-note"></p>
+        <button class="primary" id="ac-run">Open authorization page</button>
+      </div>
+
+      <!-- refresh token -->
+      <div class="panel" id="panel-rf" role="tabpanel">
+        <div class="row">
+          <div><label for="rf-client">Client</label><select id="rf-client"></select></div>
+          <div><label for="rf-secret">Client secret</label><input id="rf-secret" type="password" autocomplete="off" placeholder="required for confidential clients"></div>
+        </div>
+        <label for="rf-token">Refresh token</label>
+        <textarea id="rf-token" rows="3" autocomplete="off"></textarea>
+        <button class="primary" id="rf-run">Refresh</button>
+      </div>
+    </section>
+
+    <!-- ------------------------------------------------------- result -->
+    <section id="result-section" hidden>
+      <h2>Result</h2>
+      <div id="result-body"></div>
+    </section>
+  </main>
+
+  <footer>
+    <span>Only use keyfob-idp for local development and testing.</span>
+  </footer>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+  "use strict";
+  // ------------------------------------------------------------------ state
+  var VERIFIER_KEY = "keyfob.code_verifier";
+  var CLIENT_KEY = "keyfob.client_id";
+  var RESULT_KEY = "keyfob.last_result";
+  var FALLBACK_CLIENT = "keyfob-ui";
+
+  var info = null;
+  var result = null;
+
+  // --------------------------------------------------------------- helpers
+  function $(id) { return document.getElementById(id); }
+
+  function escapeHtml(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
+  function toast(message) {
+    var node = $("toast");
+    node.textContent = message;
+    node.classList.add("show");
+    clearTimeout(node._timer);
+    node._timer = setTimeout(function () { node.classList.remove("show"); }, 1600);
+  }
+
+  function copy(text, label) {
+    var done = function () { toast((label || "Copied") + " to clipboard"); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(text); done(); });
+    } else {
+      fallbackCopy(text); done();
+    }
+  }
+
+  function fallbackCopy(text) {
+    var area = document.createElement("textarea");
+    area.value = text;
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    try { document.execCommand("copy"); } catch (e) {}
+    document.body.removeChild(area);
+  }
+
+  // ----------------------------------------------------------- base64url
+  function base64UrlEncode(bytes) {
+    var binary = "";
+    for (var i = 0; i < bytes.length; i++) { binary += String.fromCharCode(bytes[i]); }
+    return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+
+  function base64UrlDecodeToString(value) {
+    var padded = value.replace(/-/g, "+").replace(/_/g, "/");
+    while (padded.length % 4) { padded += "="; }
+    var binary = atob(padded);
+    var bytes = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i++) { bytes[i] = binary.charCodeAt(i); }
+    return new TextDecoder().decode(bytes);
+  }
+
+  function decodeJwt(token) {
+    if (!token || token.split(".").length !== 3) { return null; }
+    try {
+      var parts = token.split(".");
+      return {
+        header: JSON.parse(base64UrlDecodeToString(parts[0])),
+        payload: JSON.parse(base64UrlDecodeToString(parts[1]))
+      };
+    } catch (e) { return null; }
+  }
+
+  function randomString(bytes) {
+    var buffer = crypto.getRandomValues(new Uint8Array(bytes));
+    return base64UrlEncode(buffer);
+  }
+
+  async function pkcePair() {
+    var verifier = randomString(32);
+    var digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
+    return { verifier: verifier, challenge: base64UrlEncode(new Uint8Array(digest)) };
+  }
+
+  // ------------------------------------------------------- time helpers
+  function humanTime(seconds) {
+    if (typeof seconds !== "number") { return ""; }
+    var date = new Date(seconds * 1000);
+    return date.toISOString();
+  }
+
+  function relativeTime(seconds) {
+    if (typeof seconds !== "number") { return ""; }
+    var diff = seconds - Math.floor(Date.now() / 1000);
+    var abs = Math.abs(diff);
+    var unit = "s", value = abs;
+    if (abs >= 86400) { unit = "d"; value = Math.round(abs / 86400); }
+    else if (abs >= 3600) { unit = "h"; value = Math.round(abs / 3600); }
+    else if (abs >= 60) { unit = "m"; value = Math.round(abs / 60); }
+    return diff >= 0 ? ("in " + value + unit) : (value + unit + " ago");
+  }
+
+  function formatDuration(seconds) {
+    if (typeof seconds !== "number") { return ""; }
+    if (seconds >= 3600) { return (seconds / 3600) + "h"; }
+    if (seconds >= 60) { return Math.round(seconds / 60) + "m"; }
+    return seconds + "s";
+  }
+
+  // ------------------------------------------------------------- fetch
+  function formEncode(object) {
+    var params = new URLSearchParams();
+    Object.keys(object).forEach(function (key) {
+      var value = object[key];
+      if (value !== undefined && value !== null && value !== "") { params.append(key, value); }
+    });
+    return params;
+  }
+
+  async function postForm(path, body) {
+    var response = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: formEncode(body).toString()
+    });
+    var json = null;
+    try { json = await response.json(); } catch (e) { json = null; }
+    return { ok: response.ok, status: response.status, json: json };
+  }
+
+  // ------------------------------------------------------------ render
+  function clientOptions(select, filter) {
+    if (!info) { return; }
+    var current = select.value;
+    select.innerHTML = "";
+    info.clients.filter(filter || function () { return true; }).forEach(function (client) {
+      var option = document.createElement("option");
+      option.value = client.client_id;
+      option.textContent = client.client_id + " (" + client.type + ")";
+      option.dataset.secret = client.client_secret || "";
+      option.dataset.scopes = (client.scopes || []).join(" ");
+      select.appendChild(option);
+    });
+    if (current) { select.value = current; }
+    syncSecret(select);
+  }
+
+  function syncSecret(select) {
+    var wrap = select.closest(".panel") || document;
+    var secretInput = wrap.querySelector('input[type="password"]');
+    if (!secretInput) { return; }
+    var option = select.options[select.selectedIndex];
+    var secret = option ? (option.dataset.secret || "") : "";
+    secretInput.value = secret;
+    secretInput.placeholder = secret
+      ? "prefilled (ui.prefill_secrets: true)"
+      : "required for confidential clients";
+  }
+
+  function defaultScopes(clientId) {
+    if (!info) { return ""; }
+    var client = info.clients.filter(function (c) { return c.client_id === clientId; })[0];
+    if (!client) { return ""; }
+    var scopes = (client.scopes || []).filter(function (s) { return s !== "offline_access"; });
+    return scopes.join(" ");
+  }
+
+  function renderNotices() {
+    var container = $("notices");
+    container.innerHTML = "";
+    if (info.config_error) {
+      container.insertAdjacentHTML("beforeend",
+        '<div class="banner error"><strong>Configuration reload failed.</strong> Still serving the previous configuration.<br>' +
+        escapeHtml(info.config_error) + "</div>");
+    }
+    (info.warnings || []).forEach(function (warning) {
+      container.insertAdjacentHTML("beforeend", '<div class="banner warn">' + escapeHtml(warning) + "</div>");
+    });
+    if (!info.loopback) {
+      container.insertAdjacentHTML("beforeend",
+        '<div class="banner warn">The server is not bound to loopback. Secrets are never prefilled and the UI should not be exposed.</div>');
+    }
+  }
+
+  function renderInfo() {
+    var e = info.endpoints;
+    var links = [
+      ["Discovery", e.discovery], ["OAuth metadata", e.oauth_metadata], ["JWKS", e.jwks],
+      ["Authorize", e.authorization], ["Token", e.token], ["UserInfo", e.userinfo],
+      ["Introspect", e.introspection], ["Revoke", e.revocation], ["Logout", e.end_session], ["Health", e.health]
+    ].map(function (pair) {
+      return '<a href="' + escapeHtml(pair[1]) + '" target="_blank" rel="noopener">' + escapeHtml(pair[0]) + "</a>";
+    }).join("");
+
+    var facts = [
+      ["Version", info.version], ["OS", info.os + " / " + info.arch],
+      ["Uptime", formatDuration(info.uptime_seconds)],
+      ["Config", info.config_path],
+      ["Config loaded", info.config_loaded_at ? new Date(info.config_loaded_at).toISOString() : "n/a"],
+      ["Issuer", info.issuer],
+      ["Signing", info.algorithm + " · kid " + info.kid + " · " + info.key_origin],
+      ["Login mode", info.login_mode],
+      ["Grants", (info.grants || []).join(", ")],
+      ["Scopes", (info.scopes || []).join(", ")]
+    ].map(function (pair) {
+      return '<div class="kv"><span class="k">' + escapeHtml(pair[0]) + '</span><span class="v">' + escapeHtml(pair[1]) + "</span></div>";
+    }).join("");
+
+    var clientRows = (info.clients || []).map(function (c) {
+      return "<tr><td><code>" + escapeHtml(c.client_id) + "</code>" +
+        (c.client_secret ? '<br><span class="muted mono">' + escapeHtml(c.client_secret) + "</span>" : "") +
+        "</td><td>" + escapeHtml(c.type) + (c.auto_approve ? ' <span class="pill">auto</span>' : "") + "</td>" +
+        "<td>" + (c.redirect_uris || []).map(escapeHtml).join("<br>") + "</td>" +
+        "<td>" + (c.scopes || []).map(function (s) { return "<code>" + escapeHtml(s) + "</code>"; }).join(" ") + "</td>" +
+        "<td>" + (c.grants || []).map(escapeHtml).join("<br>") + "</td></tr>";
+    }).join("");
+
+    var userRows = (info.users || []).map(function (u) {
+      return "<tr><td><code>" + escapeHtml(u.username) + "</code></td>" +
+        "<td>" + escapeHtml(u.name || "") + "</td><td>" + escapeHtml(u.email || "") + "</td>" +
+        "<td>" + (u.roles || []).map(escapeHtml).join(", ") + "</td>" +
+        "<td>" + (u.groups || []).map(escapeHtml).join(", ") + "</td></tr>";
+    }).join("");
+
+    $("info-body").classList.remove("muted");
+    $("info-body").innerHTML =
+      '<div class="grid">' + facts + "</div>" +
+      '<h3>Endpoints</h3><div class="links">' + links + "</div>" +
+      "<h3>Clients</h3><table><thead><tr><th>Client id</th><th>Type</th><th>Redirect URIs</th><th>Scopes</th><th>Grants</th></tr></thead><tbody>" +
+      (clientRows || '<tr><td colspan="5" class="muted">none</td></tr>') + "</tbody></table>" +
+      "<h3>Users</h3><table><thead><tr><th>Username</th><th>Name</th><th>Email</th><th>Roles</th><th>Groups</th></tr></thead><tbody>" +
+      (userRows || '<tr><td colspan="5" class="muted">none</td></tr>') + "</tbody></table>";
+  }
+
+  function renderGenerator() {
+    clientOptions($("cc-client"));
+    clientOptions($("pw-client"));
+    clientOptions($("rf-client"));
+    clientOptions($("ac-client"), function (client) { return client.public; });
+
+    $("cc-scope").value = defaultScopes($("cc-client").value);
+    $("pw-scope").value = defaultScopes($("pw-client").value);
+    $("ac-scope").value = defaultScopes($("ac-client").value);
+
+    // Password grant is only advertised when explicitly enabled.
+    if (!info.allow_password_grant) {
+      document.querySelector('[data-panel="pw"]').style.display = "none";
+      $("pw-note").textContent = "";
+    } else {
+      $("pw-note").innerHTML = '<span class="pill deprecated">deprecated</span> Resource Owner Password Credentials is enabled (allow_password_grant: true).';
+    }
+    if (!crypto.subtle) {
+      $("ac-note").textContent = "WebCrypto is unavailable outside a secure context; open the UI over http://localhost or HTTPS.";
+    } else {
+      $("ac-note").textContent = "A PKCE verifier is generated in the browser and the authorization page opens in a popup.";
+    }
+  }
+
+  // ------------------------------------------------------------- result
+  function tokenBlock(label, token) {
+    if (!token) { return ""; }
+    var decoded = decodeJwt(token);
+    var html = '<div class="token-block"><div class="token-head"><strong>' + escapeHtml(label) +
+      '</strong><button class="small" data-copy="' + escapeHtml(token) + '">Copy</button></div>' +
+      "<pre>" + escapeHtml(token) + "</pre>";
+    if (decoded) {
+      html += renderClaims(decoded);
+    }
+    return html + "</div>";
+  }
+
+  function renderClaims(decoded) {
+    var html = "<details><summary>Decoded header</summary><pre>" +
+      escapeHtml(JSON.stringify(decoded.header, null, 2)) + "</pre></details>";
+    var times = ["iat", "exp", "nbf", "auth_time"].map(function (claim) {
+      if (typeof decoded.payload[claim] !== "number") { return ""; }
+      return "<div class=\"kv\"><span class=\"k\">" + claim + '</span><span class="v">' +
+        escapeHtml(humanTime(decoded.payload[claim])) + " (" + escapeHtml(relativeTime(decoded.payload[claim])) + ")</span></div>";
+    }).join("");
+    html += "<details open><summary>Decoded payload</summary>" +
+      (times ? '<div style="margin:8px 0">' + times + "</div>" : "") +
+      "<pre>" + escapeHtml(JSON.stringify(decoded.payload, null, 2)) + "</pre></details>";
+    return html;
+  }
+
+  function renderCurl(request) {
+    if (!request) { return ""; }
+    var lines = ["curl -sS -X " + request.method + " '" + request.url + "'"];
+    var headers = request.headers || {};
+    Object.keys(headers).forEach(function (name) {
+      lines.push("  -H '" + name + ": " + headers[name] + "'");
+    });
+    if (request.body) {
+      lines.push("  --data '" + request.body.replace(/'/g, "'\\''") + "'");
+    }
+    return "<details><summary>Equivalent curl</summary><pre>" + escapeHtml(lines.join(" \\\n")) + "</pre></details>";
+  }
+
+  function renderJson(title, json) {
+    return '<div class="token-block"><div class="token-head"><strong>' + escapeHtml(title) +
+      "</strong></div><pre>" + escapeHtml(JSON.stringify(json, null, 2)) + "</pre></div>";
+  }
+
+  function renderResult() {
+    var section = $("result-section");
+    var body = $("result-body");
+    if (!result) { section.hidden = true; body.innerHTML = ""; return; }
+    section.hidden = false;
+
+    if (!result.ok) {
+      var hint = result.hint ? '<p class="muted">' + escapeHtml(result.hint) + "</p>" : "";
+      body.innerHTML = '<div class="banner error"><strong>' +
+        escapeHtml(result.error || "request failed") + "</strong>" +
+        (result.error_description ? "<br>" + escapeHtml(result.error_description) : "") + "</div>" + hint +
+        renderCurl(result.request);
+      return;
+    }
+
+    var json = result.json || {};
+    var html = "";
+    if (json.access_token || json.id_token || json.refresh_token) {
+      html += tokenBlock("access_token", json.access_token);
+      html += tokenBlock("id_token", json.id_token);
+      html += tokenBlock("refresh_token", json.refresh_token);
+    } else {
+      html += renderJson(result.title || "Response", json);
+    }
+    html += renderCurl(result.request);
+    var actions = '<div class="actions">' +
+      '<button class="small" id="act-introspect">Introspect</button>' +
+      '<button class="small" id="act-userinfo">UserInfo</button>' +
+      '<button class="small" id="act-revoke">Revoke</button>' +
+      "</div>" +
+      '<div id="action-output"></div>';
+    body.innerHTML = html + actions;
+    wireCopy(body);
+    wireActions();
+  }
+
+  function wireCopy(root) {
+    root.querySelectorAll("[data-copy]").forEach(function (button) {
+      button.addEventListener("click", function () { copy(button.dataset.copy, "Token"); });
+    });
+  }
+
+  function accessToken() {
+    return result && result.json ? result.json.access_token : null;
+  }
+
+  function actionCredentials() {
+    // Prefer the client credentials of the flow that produced the token.
+    return result && result.client ? result.client : {};
+  }
+
+  function showActionOutput(title, json) {
+    var node = $("action-output");
+    if (node) { node.innerHTML = renderJson(title, json); }
+    else { toast(title + ": " + JSON.stringify(json).slice(0, 60)); }
+  }
+
+  function wireActions() {
+    var introspect = $("act-introspect");
+    var userinfo = $("act-userinfo");
+    var revoke = $("act-revoke");
+
+    if (introspect) {
+      introspect.addEventListener("click", async function () {
+        var token = accessToken();
+        if (!token) { toast("No access token"); return; }
+        var creds = actionCredentials();
+        var body = { token: token, token_type_hint: "access_token" };
+        if (creds.client_id) { body.client_id = creds.client_id; }
+        if (creds.client_secret) { body.client_secret = creds.client_secret; }
+        var response = await postForm("/introspect", body);
+        showActionOutput("Introspection", response.json || { status: response.status });
+      });
+    }
+    if (userinfo) {
+      userinfo.addEventListener("click", async function () {
+        var token = accessToken();
+        if (!token) { toast("No access token"); return; }
+        try {
+          var response = await fetch("/userinfo", { headers: { Authorization: "Bearer " + token } });
+          var json = await response.json();
+          showActionOutput("UserInfo", json);
+        } catch (e) { toast("UserInfo request failed: " + e); }
+      });
+    }
+    if (revoke) {
+      revoke.addEventListener("click", async function () {
+        var token = result && result.json ? (result.json.refresh_token || result.json.access_token) : null;
+        if (!token) { toast("No token"); return; }
+        var creds = actionCredentials();
+        var body = { token: token };
+        if (creds.client_id) { body.client_id = creds.client_id; }
+        if (creds.client_secret) { body.client_secret = creds.client_secret; }
+        await postForm("/revoke", body);
+        toast("Revocation request sent");
+      });
+    }
+  }
+
+  // ---------------------------------------------------------- error map
+  function hintFor(error) {
+    var hints = {
+      invalid_client: "Check the client id and secret.",
+      invalid_grant: "The code or refresh token was rejected. Authorization codes are single use and PKCE must match.",
+      invalid_scope: "The requested scopes are not allowed for this client.",
+      unsupported_grant_type: "This grant is not enabled for the client.",
+      invalid_request: "One or more parameters were missing or malformed."
+    };
+    return hints[error] || "";
+  }
+
+  function setResult(object) {
+    result = object;
+    renderResult();
+    $("result-section").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  // -------------------------------------------------------------- flows
+  async function runClientCredentials() {
+    var clientId = $("cc-client").value;
+    var body = {
+      grant_type: "client_credentials",
+      client_id: clientId,
+      client_secret: $("cc-secret").value,
+      scope: $("cc-scope").value.trim()
+    };
+    var request = {
+      method: "POST", url: location.origin + "/token",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: formEncode(body).toString()
+    };
+    var response = await postForm("/token", body);
+    finishRequest(response, request, clientId, $("cc-secret").value);
+  }
+
+  async function runPassword() {
+    var clientId = $("pw-client").value;
+    var body = {
+      grant_type: "password",
+      client_id: clientId,
+      client_secret: $("pw-secret").value,
+      username: $("pw-user").value,
+      password: $("pw-password").value,
+      scope: $("pw-scope").value.trim()
+    };
+    var request = {
+      method: "POST", url: location.origin + "/token",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: formEncode(body).toString()
+    };
+    var response = await postForm("/token", body);
+    finishRequest(response, request, clientId, $("pw-secret").value);
+  }
+
+  async function runRefresh() {
+    var clientId = $("rf-client").value;
+    var body = {
+      grant_type: "refresh_token",
+      client_id: clientId,
+      client_secret: $("rf-secret").value,
+      refresh_token: $("rf-token").value.trim()
+    };
+    var request = {
+      method: "POST", url: location.origin + "/token",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: formEncode(body).toString()
+    };
+    var response = await postForm("/token", body);
+    finishRequest(response, request, clientId, $("rf-secret").value);
+  }
+
+  async function runAuthorizationCode() {
+    if (!crypto.subtle) { toast("WebCrypto unavailable; use localhost or HTTPS"); return; }
+    var clientId = $("ac-client").value;
+    var redirectUri = location.origin + "/ui/callback";
+    var pair = await pkcePair();
+    var stateParam = randomString(16);
+    sessionStorage.setItem(VERIFIER_KEY, pair.verifier);
+    sessionStorage.setItem(CLIENT_KEY, clientId);
+
+    var params = new URLSearchParams({
+      response_type: "code",
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      scope: $("ac-scope").value.trim(),
+      state: stateParam,
+      code_challenge: pair.challenge,
+      code_challenge_method: "S256"
+    });
+    var nonce = $("ac-nonce").value.trim();
+    if (nonce) { params.set("nonce", nonce); }
+
+    var url = location.origin + "/authorize?" + params.toString();
+    var popup = window.open(url, "keyfob-authorize", "width=520,height=680");
+    if (!popup) {
+      toast("Popup blocked; opening the authorization page in this tab");
+      location.href = url;
+    }
+  }
+
+  function finishRequest(response, request, clientId, secret) {
+    if (response.ok) {
+      setResult({ ok: true, json: response.json, request: request, client: { client_id: clientId, client_secret: secret || "" } });
+    } else {
+      var json = response.json || {};
+      setResult({
+        ok: false, request: request,
+        error: json.error || ("HTTP " + response.status),
+        error_description: json.error_description,
+        hint: hintFor(json.error)
+      });
+    }
+  }
+
+  // ----------------------------------------------------- popup callback
+  window.addEventListener("message", function (event) {
+    if (!event.data || event.data.type !== "keyfob:callback") { return; }
+    var payload = event.data.payload || {};
+    if (payload.ok) {
+      setResult({
+        ok: true, json: payload.tokens,
+        request: { method: "POST", url: location.origin + "/token", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: "grant_type=authorization_code&code=…&redirect_uri=" + location.origin + "/ui/callback&client_id=" +
+            (sessionStorage.getItem(CLIENT_KEY) || FALLBACK_CLIENT) + "&code_verifier=…" },
+        client: { client_id: sessionStorage.getItem(CLIENT_KEY) || FALLBACK_CLIENT, client_secret: "" }
+      });
+    } else {
+      setResult({ ok: false, error: payload.error || "error", error_description: payload.error_description, hint: hintFor(payload.error) });
+    }
+  });
+
+  // ------------------------------------------------------------- wiring
+  function selectTab(panel) {
+    document.querySelectorAll(".tab").forEach(function (tab) {
+      tab.setAttribute("aria-selected", String(tab.dataset.panel === panel));
+    });
+    document.querySelectorAll(".panel").forEach(function (node) {
+      node.classList.toggle("active", node.id === "panel-" + panel);
+    });
+  }
+
+  function initEvents() {
+    document.querySelectorAll(".tab").forEach(function (tab) {
+      tab.addEventListener("click", function () { selectTab(tab.dataset.panel); });
+    });
+    ["cc-client", "pw-client", "rf-client", "ac-client"].forEach(function (id) {
+      $(id).addEventListener("change", function () {
+        syncSecret($(id));
+        var scope = id.replace("-client", "-scope");
+        if ($(scope)) { $(scope).value = defaultScopes($(id).value); }
+      });
+    });
+    $("cc-run").addEventListener("click", runClientCredentials);
+    $("pw-run").addEventListener("click", runPassword);
+    $("rf-run").addEventListener("click", runRefresh);
+    $("ac-run").addEventListener("click", runAuthorizationCode);
+
+    // A result stored by the callback page (popup blocked, or reload).
+    var stored = sessionStorage.getItem(RESULT_KEY);
+    if (stored) {
+      try {
+        var payload = JSON.parse(stored);
+        if (payload && payload.ok && payload.tokens) {
+          setResult({ ok: true, json: payload.tokens, client: { client_id: sessionStorage.getItem(CLIENT_KEY) || FALLBACK_CLIENT, client_secret: "" } });
+        }
+      } catch (e) {}
+      sessionStorage.removeItem(RESULT_KEY);
+    }
+  }
+
+  async function main() {
+    try {
+      var response = await fetch("/ui/info");
+      info = await response.json();
+    } catch (e) {
+      $("info-body").innerHTML = '<div class="banner error">Failed to load server information: ' + escapeHtml(e) + "</div>";
+      return;
+    }
+    renderNotices();
+    renderInfo();
+    renderGenerator();
+    initEvents();
+    renderResult();
+  }
+
+  main();
+  </script>
+</body>
+</html>

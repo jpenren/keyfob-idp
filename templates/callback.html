@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Completing sign-in · keyfob-idp</title>
+  <style>
+    :root { color-scheme: light dark; --bg:#f6f7f9; --card:#fff; --fg:#1c1e21; --muted:#6b7280; --border:#e3e5e8; --accent:#2563eb; --danger:#b91c1c; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg:#111418; --card:#181c21; --fg:#e8eaed; --muted:#9aa4b2; --border:#2a2f36; --accent:#5b8def; --danger:#f87171; }
+    }
+    body { margin:0; min-height:100vh; display:grid; place-items:center; background:var(--bg); color:var(--fg);
+           font:16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; padding:24px; }
+    .card { width:100%; max-width:640px; background:var(--card); border:1px solid var(--border); border-radius:12px; padding:24px; }
+    h1 { margin:0 0 12px; font-size:20px; }
+    p { margin:0 0 12px; }
+    pre { background:rgba(127,127,127,.12); padding:12px; border-radius:8px; overflow:auto; font-size:13px; }
+    .error { color:var(--danger); }
+    a { color:var(--accent); }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>Completing sign-in…</h1>
+    <p id="status">Exchanging the authorization code for tokens.</p>
+    <pre id="output" hidden></pre>
+    <p><a href="/">Back to the token generator</a></p>
+  </main>
+  <script>
+    // The token generator stores the PKCE verifier and its state under these keys.
+    var VERIFIER_KEY = "keyfob.code_verifier";
+    var RESULT_KEY = "keyfob.last_result";
+
+    function done(payload) {
+      try { sessionStorage.setItem(RESULT_KEY, JSON.stringify(payload)); } catch (e) {}
+      // The generator opens this page in a popup; tell it we are finished.
+      if (window.opener) {
+        try { window.opener.postMessage({ type: "keyfob:callback", payload: payload }, "*"); } catch (e) {}
+        window.close();
+      }
+    }
+
+    (function () {
+      var status = document.getElementById("status");
+      var output = document.getElementById("output");
+      var query = new URLSearchParams(window.location.search);
+      var code = query.get("code");
+      var state = query.get("state");
+      var error = query.get("error");
+
+      if (error) {
+        status.className = "error";
+        status.textContent = error + ": " + (query.get("error_description") || "");
+        done({ ok: false, error: error, error_description: query.get("error_description") });
+        return;
+      }
+      if (!code) {
+        status.className = "error";
+        status.textContent = "No authorization code was returned.";
+        return;
+      }
+
+      var clientId = sessionStorage.getItem("keyfob.client_id") || "keyfob-ui";
+      var redirectUri = window.location.origin + "/ui/callback";
+      var verifier = sessionStorage.getItem(VERIFIER_KEY);
+      if (!verifier) {
+        status.className = "error";
+        status.textContent = "Missing PKCE verifier (the tab was reloaded). Start again from the home page.";
+        return;
+      }
+
+      var body = new URLSearchParams({
+        grant_type: "authorization_code",
+        code: code,
+        redirect_uri: redirectUri,
+        client_id: clientId,
+        code_verifier: verifier
+      });
+
+      fetch("/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: body.toString()
+      })
+        .then(function (response) { return response.json().then(function (json) { return { ok: response.ok, json: json }; }); })
+        .then(function (result) {
+          if (!result.ok) {
+            status.className = "error";
+            status.textContent = result.json.error + ": " + (result.json.error_description || "");
+            done({ ok: false, state: state, error: result.json.error, error_description: result.json.error_description });
+            return;
+          }
+          status.textContent = "Signed in. Returning the tokens to the token generator…";
+          output.hidden = false;
+          output.textContent = JSON.stringify(result.json, null, 2);
+          done({ ok: true, state: state, tokens: result.json });
+        })
+        .catch(function (err) {
+          status.className = "error";
+          status.textContent = "Request failed: " + err;
+        });
+    })();
+  </script>
+</body>
+</html>

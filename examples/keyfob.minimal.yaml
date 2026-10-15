@@ -1,0 +1,35 @@
+# keyfob.minimal.yaml — the smallest useful configuration.
+#
+#   keyfob run --config examples/keyfob.minimal.yaml
+#
+# One public SPA (Authorization Code + PKCE) and one confidential backend
+# (client credentials). Everything else uses the built-in defaults.
+
+server:
+  host: 127.0.0.1
+  port: 9000
+
+clients:
+  - client_id: my-spa
+    public: true
+    redirect_uris:
+      - http://localhost:3000/callback
+
+  - client_id: my-backend
+    client_secret: dev-secret
+    grant_types: [client_credentials, refresh_token]
+
+users:
+  - username: alice
+    password: alice123
+    email: alice@example.test
+    name: Alice Doe
+    roles: [admin, user]
+    # Keycloak-compatible roles: realm roles plus per-client roles, so apps
+    # that read `realm_access` / `resource_access` work without changes.
+    claims:
+      realm_access:
+        roles: [admin, user]
+      resource_access:
+        my-spa:
+          roles: [admin]
