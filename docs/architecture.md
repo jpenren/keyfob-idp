@@ -39,7 +39,7 @@ keeps the protocol logic testable without a listening socket.
 | `oauth` | [`src/oauth/`](../src/oauth/) | Grant logic and RFC behaviour: `/token`, `/authorize`, client authentication, scopes, introspection (RFC 7662) and revocation (RFC 7009). |
 | `oidc` | [`src/oidc/`](../src/oidc/) | Claim construction (access token, ID token, userinfo) and the discovery documents (OIDC Discovery 1.0 / RFC 8414). |
 | `http` | [`src/http/`](../src/http/) | The axum router and thin handlers that parse requests, call the domain and serialise responses. |
-| `ui` | [`src/ui/`](../src/ui/) | Templates embedded with `include_str!`, with an optional on-disk override. |
+| `ui` | [`src/ui/`](../src/ui/) | Templates embedded with `include_str!`, with an optional on-disk override. The brand mark is inlined as SVG, so the pages reference no external assets. |
 | `cli` | [`src/cli.rs`](../src/cli.rs) | `run`, `validate`, `init`, `hash-password`, `gen-keys`, `token`; hot-reload watcher and the cleanup task. |
 | `state` | [`src/state.rs`](../src/state.rs) | `Runtime` (resolved config), `AppState` (shared server state) and hot reload. |
 

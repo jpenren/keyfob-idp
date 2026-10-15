@@ -348,6 +348,9 @@ rendered with `200`.
 `/` renders the home page with the embedded token generator. `/ui/info`
 returns the JSON that powers it. Both return `404` when `ui.enabled: false`.
 
+The page is self-contained: the logo is inlined as SVG, follows the light/dark
+browser colour scheme and references no external assets.
+
 `/ui/info` fields include: `version`, `os`, `arch`, `uptime_seconds`,
 `started_at`, `config_path`, `config_loaded_at`, `config_last_attempt_at`,
 `config_error`, `warnings`, `issuer`, `tls`, `loopback`, `debug`,

@@ -85,6 +85,7 @@ src/http/     axum router and handlers (thin adapters over the domain)
 src/ui/       embedded templates (login, error, home, callback, logout)
 src/cli.rs    run | validate | init | hash-password | gen-keys | token
 templates/    HTML included with include_str!
+assets/       logo.svg, logo-dark.svg and social-preview.png
 tests/        integration tests against a real server on an ephemeral port
 examples/     ready-to-run YAML files
 ```

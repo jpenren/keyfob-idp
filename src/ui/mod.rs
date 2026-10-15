@@ -131,11 +131,18 @@ mod tests {
             .unwrap();
         assert!(html.contains("Token generator"));
         assert!(html.contains("v0.1.0"));
+        // The brand mark is inlined so the page keeps working offline.
+        assert!(html.contains(r#"aria-label="keyfob-idp""#));
+        assert!(html.contains("var(--logo-fg)"));
         assert!(
             !html.contains("{{"),
             "unrendered template syntax left: {html}"
         );
         assert!(!html.contains("<script src="));
+        assert!(
+            !html.contains("<img"),
+            "the home page must not fetch assets"
+        );
     }
 
     #[test]

@@ -1,5 +1,10 @@
 <div align="center">
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg">
+  <img src="assets/logo.svg" alt="keyfob-idp" width="330">
+</picture>
+
 # keyfob-idp
 
 **A local OAuth 2.0 / OpenID Connect provider for development and testing.**
