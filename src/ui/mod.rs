@@ -146,6 +146,21 @@ mod tests {
     }
 
     #[test]
+    fn generator_callback_matches_the_internal_client() {
+        // The generator exchanges the authorization code at `<origin>/ui/callback`;
+        // the path must match the redirect URI registered for `keyfob-ui`.
+        let client = crate::state::internal_ui_client("https://issuer.test");
+        assert_eq!(
+            client.redirect_uris,
+            vec!["https://issuer.test/ui/callback"]
+        );
+        assert!(
+            HOME_HTML.contains(r#"var UI_CALLBACK_PATH = "/ui/callback";"#),
+            "the home page must use the callback path registered for the internal client"
+        );
+    }
+
+    #[test]
     fn error_template_escapes_values() {
         let templates = Templates::load(None);
         let html = templates

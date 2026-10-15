@@ -75,6 +75,7 @@
       margin-top: 14px; background: var(--accent); color: var(--accent-fg); border: 0;
       padding: 9px 16px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500;
     }
+    button.primary:disabled { opacity: .5; cursor: not-allowed; }
     button.small { padding: 4px 9px; font-size: 12px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--fg); cursor: pointer; }
     .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
     .row > div { flex: 1 1 180px; min-width: 0; }
@@ -210,6 +211,10 @@
   var CLIENT_KEY = "keyfob.client_id";
   var RESULT_KEY = "keyfob.last_result";
   var FALLBACK_CLIENT = "keyfob-ui";
+  // The generator returns the authorization code to this path, so a client can
+  // only be used from the "Authorization code + PKCE" tab when its
+  // `redirect_uris` contains `<origin>/ui/callback` exactly.
+  var UI_CALLBACK_PATH = "/ui/callback";
 
   var info = null;
   var result = null;
@@ -336,19 +341,39 @@
   }
 
   // ------------------------------------------------------------ render
-  function clientOptions(select, filter) {
+  function uiCallbackUri() { return location.origin + UI_CALLBACK_PATH; }
+
+  function uiCallbackMissing(client) {
+    return (client.redirect_uris || []).indexOf(uiCallbackUri()) === -1;
+  }
+
+  function hasEnabledOption(select) {
+    return Array.prototype.some.call(select.options, function (option) { return !option.disabled; });
+  }
+
+  function clientOptions(select, filter, unusable) {
     if (!info) { return; }
     var current = select.value;
+    var options = [];
     select.innerHTML = "";
     info.clients.filter(filter || function () { return true; }).forEach(function (client) {
       var option = document.createElement("option");
       option.value = client.client_id;
       option.textContent = client.client_id + " (" + client.type + ")";
+      var reason = unusable ? unusable(client) : null;
+      if (reason) {
+        option.disabled = true;
+        option.textContent += " — " + reason;
+      }
       option.dataset.secret = client.client_secret || "";
       option.dataset.scopes = (client.scopes || []).join(" ");
       select.appendChild(option);
+      options.push(option);
     });
-    if (current) { select.value = current; }
+    var enabled = options.filter(function (option) { return !option.disabled; });
+    var keep = enabled.filter(function (option) { return option.value === current; })[0];
+    if (keep) { select.value = keep.value; }
+    else if (enabled.length) { select.value = enabled[0].value; }
     syncSecret(select);
   }
 
@@ -443,7 +468,13 @@
     clientOptions($("cc-client"));
     clientOptions($("pw-client"));
     clientOptions($("rf-client"));
-    clientOptions($("ac-client"), function (client) { return client.public; });
+    // The authorization code is returned to this page, so only clients that
+    // register that exact redirect URI can finish the flow here.
+    clientOptions(
+      $("ac-client"),
+      function (client) { return client.public; },
+      function (client) { return uiCallbackMissing(client) ? "needs " + uiCallbackUri() : null; }
+    );
 
     $("cc-scope").value = defaultScopes($("cc-client").value);
     $("pw-scope").value = defaultScopes($("pw-client").value);
@@ -458,8 +489,14 @@
     }
     if (!crypto.subtle) {
       $("ac-note").textContent = "WebCrypto is unavailable outside a secure context; open the UI over http://localhost or HTTPS.";
+    } else if (!hasEnabledOption($("ac-client"))) {
+      $("ac-note").innerHTML = '<span class="pill deprecated">no usable client</span> The authorization code is returned to <code>' +
+        escapeHtml(uiCallbackUri()) + "</code>, which no public client registers. Add it to a client's " +
+        "<code>redirect_uris</code> in keyfob.yaml, or open this page on the issuer origin.";
+      $("ac-run").disabled = true;
     } else {
-      $("ac-note").textContent = "A PKCE verifier is generated in the browser and the authorization page opens in a popup.";
+      $("ac-note").innerHTML = "A PKCE verifier is generated in the browser and the authorization page opens in a popup; " +
+        "the code is returned to <code>" + escapeHtml(uiCallbackUri()) + "</code>.";
     }
   }
 
@@ -608,7 +645,11 @@
   }
 
   // ---------------------------------------------------------- error map
-  function hintFor(error) {
+  function hintFor(error, description) {
+    if (error === "invalid_request" && /redirect_uri/i.test(description || "")) {
+      return "The generator returns the code to " + uiCallbackUri() +
+        "; add that URI to the client's redirect_uris in keyfob.yaml.";
+    }
     var hints = {
       invalid_client: "Check the client id and secret.",
       invalid_grant: "The code or refresh token was rejected. Authorization codes are single use and PKCE must match.",
@@ -682,7 +723,8 @@
   async function runAuthorizationCode() {
     if (!crypto.subtle) { toast("WebCrypto unavailable; use localhost or HTTPS"); return; }
     var clientId = $("ac-client").value;
-    var redirectUri = location.origin + "/ui/callback";
+    if (!clientId) { toast("No client registers " + uiCallbackUri()); return; }
+    var redirectUri = uiCallbackUri();
     var pair = await pkcePair();
     var stateParam = randomString(16);
     sessionStorage.setItem(VERIFIER_KEY, pair.verifier);
@@ -717,7 +759,7 @@
         ok: false, request: request,
         error: json.error || ("HTTP " + response.status),
         error_description: json.error_description,
-        hint: hintFor(json.error)
+        hint: hintFor(json.error, json.error_description)
       });
     }
   }
@@ -730,12 +772,12 @@
       setResult({
         ok: true, json: payload.tokens,
         request: { method: "POST", url: location.origin + "/token", headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: "grant_type=authorization_code&code=…&redirect_uri=" + location.origin + "/ui/callback&client_id=" +
+          body: "grant_type=authorization_code&code=…&redirect_uri=" + uiCallbackUri() + "&client_id=" +
             (sessionStorage.getItem(CLIENT_KEY) || FALLBACK_CLIENT) + "&code_verifier=…" },
         client: { client_id: sessionStorage.getItem(CLIENT_KEY) || FALLBACK_CLIENT, client_secret: "" }
       });
     } else {
-      setResult({ ok: false, error: payload.error || "error", error_description: payload.error_description, hint: hintFor(payload.error) });
+      setResult({ ok: false, error: payload.error || "error", error_description: payload.error_description, hint: hintFor(payload.error, payload.error_description) });
     }
   });
 

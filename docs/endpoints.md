@@ -369,7 +369,9 @@ and `groups`; passwords and password hashes are never exposed.
 The redirect target registered for the internal `keyfob-ui` client. It reads
 the `code`/`error` from the query string, exchanges the code at `/token` using
 the PKCE verifier stored in the browser, and reports the tokens back to the
-token generator (via `postMessage` or `sessionStorage`).
+token generator (via `postMessage` or `sessionStorage`). A client can only be
+used from the authorization-code tab when it registers `<origin>/ui/callback`
+as one of its `redirect_uris`.
 
 ### `GET /debug/tokens`
 

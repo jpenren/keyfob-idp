@@ -273,9 +273,11 @@ before wiring it into real code.
 
 Notes:
 
-- The authorization-code tab uses the internal public client `keyfob-ui`,
-  registered automatically when `ui.enabled: true` with redirect URI
-  `{issuer}/ui/callback`.
+- The authorization-code tab lists the public clients. The code is returned to
+  `<origin>/ui/callback`, so a client can only be used from the page when that
+  exact URI is in its `redirect_uris`; the others are shown disabled with the
+  URI to add. The internal `keyfob-ui` client always registers it and is used
+  when no other client can.
 - For a non-loopback bind the UI shows a warning and never pre-fills secrets,
   even with `ui.prefill_secrets: true`.
 - WebCrypto requires a secure context: use `http://localhost`,
