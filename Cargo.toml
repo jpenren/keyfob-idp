@@ -29,7 +29,7 @@ clap = { version = "4.6.7", features = ["derive", "env"] }
 jsonwebtoken = { version = "11.1.0", features = ["rust_crypto", "use_pem"] }
 minijinja = { version = "3.0.1", features = ["json", "serde"] }
 notify = "8.2.0"
-rand = "0.8"
+rand = "0.10"
 rcgen = "0.14.10"
 rsa = { version = "0.9.10", features = ["pem"] }
 # rustls with the ring provider: avoids the aws-lc-rs C toolchain requirement.
