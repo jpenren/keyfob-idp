@@ -32,29 +32,38 @@ can try every flow without writing `curl`.
 
 ## Quick start
 
-Grab the binary for your platform from the
+Download the binary for your platform from the
 [latest release](https://github.com/jpenren/keyfob-idp/releases/latest):
 
 | Platform | Asset |
 | --- | --- |
-| Linux x86_64 | `keyfob-<tag>-x86_64-unknown-linux-gnu.tar.gz` |
-| Windows x86_64 | `keyfob-<tag>-x86_64-pc-windows-msvc.zip` |
-| macOS (Apple silicon) | `keyfob-<tag>-aarch64-apple-darwin.tar.gz` |
-| macOS (Intel) | `keyfob-<tag>-x86_64-apple-darwin.tar.gz` |
+| Linux x86_64 | `keyfob-linux-x86_64.tar.gz` |
+| Windows x86_64 | `keyfob-windows-x86_64.zip` |
+| macOS (Apple silicon) | `keyfob-macos-arm64.tar.gz` |
+| macOS (Intel) | `keyfob-macos-x86_64.tar.gz` |
+| Sources | `keyfob-src.tar.gz` / `keyfob-src.zip` |
 
-`<tag>` is the release tag (`v0.1.0`, …). Each archive unpacks to a
-`keyfob-<tag>-<target>/` directory holding the `keyfob` binary, the example
-configurations, the README and the licences. From a terminal, for Linux x86_64:
+Asset names are stable, so `.../releases/latest/download/<asset>` always points
+at the newest build; for a specific version replace `latest` with the tag
+(`.../releases/download/v0.1.0/keyfob-linux-x86_64.tar.gz`). Every archive
+unpacks to a `keyfob-<tag>-<target>/` directory holding the `keyfob` binary, the
+example configurations, the README and the licences.
+
+From a terminal, for Linux x86_64:
 
 ```sh
-TAG=v0.1.0
-curl -LO "https://github.com/jpenren/keyfob-idp/releases/download/$TAG/keyfob-$TAG-x86_64-unknown-linux-gnu.tar.gz"
-tar -xzf "keyfob-$TAG-x86_64-unknown-linux-gnu.tar.gz"
-install -m 755 "keyfob-$TAG-x86_64-unknown-linux-gnu/keyfob" ~/.local/bin/keyfob
+curl -LO https://github.com/jpenren/keyfob-idp/releases/latest/download/keyfob-linux-x86_64.tar.gz
+tar -xzf keyfob-linux-x86_64.tar.gz
+install -m 755 keyfob-*/keyfob ~/.local/bin/keyfob
+
+# Optional: verify the download against the published checksums
+curl -LO https://github.com/jpenren/keyfob-idp/releases/latest/download/SHA256SUMS
+sha256sum --check --ignore-missing SHA256SUMS
 ```
 
-On Windows, extract the `.zip` (`Expand-Archive`) and run `keyfob.exe`. The
-macOS builds are not notarised: open them with right-click → *Open*, or run
+On Windows, extract the `.zip` (`Expand-Archive`) and run `keyfob.exe`; check it
+with `Get-FileHash keyfob-windows-x86_64.zip` against `SHA256SUMS`. The macOS
+builds are not notarised: open them with right-click → *Open*, or run
 `xattr -d com.apple.quarantine keyfob` once after extracting.
 
 Prefer to build from source instead:

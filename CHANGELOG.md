@@ -6,9 +6,9 @@ All notable changes to this project will be documented in this file. This projec
 
 ### Added
 
-- The README **Quick start** and `docs/getting-started.md` now explain how to download a prebuilt binary from the latest GitHub Release (asset names per platform, extraction, PATH install and the macOS quarantine note) as the recommended path, with `cargo install --path .` / `cargo build --release` as the from-source alternative.
+- The README **Quick start** and `docs/getting-started.md` now explain how to download a prebuilt binary from the latest GitHub Release (stable asset names per platform, extraction, PATH install, `SHA256SUMS` verification and the macOS quarantine note) as the recommended path, with `cargo install --path .` / `cargo build --release` as the from-source alternative.
 - Project logo in `assets/` (light/dark SVG pair plus a social preview image). The README shows the logo with a `prefers-color-scheme` switch and the home page inlines it as SVG, following the browser theme without any external asset.
-- Release workflow (`.github/workflows/release.yml`): pushing a `v*` tag publishes a GitHub Release with `keyfob` binaries for x86_64 Linux, x86_64 Windows, and x86_64/aarch64 macOS (`.tar.gz`, Windows `.zip`) and source archives (`.tar.gz`, `.zip`), after checking that the tag matches the crate version.
+- Release workflow (`.github/workflows/release.yml`): pushing a `v*` tag publishes a GitHub Release with `keyfob` binaries for x86_64 Linux, x86_64 Windows, and x86_64/aarch64 macOS (`.tar.gz`, Windows `.zip`), source archives (`.tar.gz`, `.zip`) and a `SHA256SUMS` file, after checking that the tag matches the crate version. Asset names are stable across releases (`keyfob-linux-x86_64.tar.gz`, `keyfob-macos-arm64.tar.gz`, …) so `.../releases/latest/download/<asset>` always resolves to the newest build, while the version stays visible inside the archive as `keyfob-<tag>-<target>/`. The workflow uses the current action majors (`actions/checkout@v7`, `actions/upload-artifact@v7`, `actions/download-artifact@v8`, `softprops/action-gh-release@v3`), matching `ci.yml`.
 
 ### Changed
 

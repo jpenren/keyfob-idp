@@ -252,6 +252,14 @@ a new decision explicitly supersedes them.
     `ui.enabled`. It is a public PKCE client whose redirect URI is
     `<issuer>/ui/callback`; it backs the embedded token generator and is not
     meant to be used by real applications.
+21. **Release assets use stable, unversioned file names.** `.github/workflows/release.yml`
+    publishes `keyfob-linux-x86_64.tar.gz`, `keyfob-windows-x86_64.zip`,
+    `keyfob-macos-arm64.tar.gz`, `keyfob-macos-x86_64.tar.gz`,
+    `keyfob-src.tar.gz` / `keyfob-src.zip` and a `SHA256SUMS` file, so
+    `.../releases/latest/download/<asset>` always resolves to the newest build
+    without knowing the tag. The version stays visible inside the archive
+    (`keyfob-<tag>-<target>/`), and the workflow refuses to publish when the tag
+    does not match `Cargo.toml`.
 
 ## Related reading
 

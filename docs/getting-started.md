@@ -86,24 +86,30 @@ See [`docs/configuration.md`](configuration.md) for every key, or the annotated
 
 The quickest way is to download a prebuilt binary from the
 [latest release](https://github.com/jpenren/keyfob-idp/releases/latest)
-(`keyfob-<tag>-x86_64-unknown-linux-gnu.tar.gz`,
-`keyfob-<tag>-x86_64-pc-windows-msvc.zip`,
-`keyfob-<tag>-aarch64-apple-darwin.tar.gz` or
-`keyfob-<tag>-x86_64-apple-darwin.tar.gz`; `<tag>` is the release tag, e.g.
-`v0.1.0`). Each archive holds the `keyfob` binary, the example configurations,
-the README and the licences:
+(`keyfob-linux-x86_64.tar.gz`, `keyfob-windows-x86_64.zip`,
+`keyfob-macos-arm64.tar.gz` or `keyfob-macos-x86_64.tar.gz`; sources are
+`keyfob-src.tar.gz` / `keyfob-src.zip`). Asset names are stable, so
+`.../releases/latest/download/<asset>` always points at the newest build —
+replace `latest` with a tag such as `v0.1.0` to pin a version. Each archive
+unpacks to a `keyfob-<tag>-<target>/` directory holding the `keyfob` binary, the
+example configurations, the README and the licences:
 
 ```sh
-TAG=v0.1.0
-curl -LO "https://github.com/jpenren/keyfob-idp/releases/download/$TAG/keyfob-$TAG-x86_64-unknown-linux-gnu.tar.gz"
-tar -xzf "keyfob-$TAG-x86_64-unknown-linux-gnu.tar.gz"
-install -m 755 "keyfob-$TAG-x86_64-unknown-linux-gnu/keyfob" ~/.local/bin/keyfob
+curl -LO https://github.com/jpenren/keyfob-idp/releases/latest/download/keyfob-linux-x86_64.tar.gz
+tar -xzf keyfob-linux-x86_64.tar.gz
+install -m 755 keyfob-*/keyfob ~/.local/bin/keyfob
 # the archive also ships the example configurations:
-keyfob run --config "keyfob-$TAG-x86_64-unknown-linux-gnu/keyfob.minimal.yaml"
+keyfob run --config keyfob-*/keyfob.minimal.yaml
+
+# Optional: verify the download against the published checksums
+curl -LO https://github.com/jpenren/keyfob-idp/releases/latest/download/SHA256SUMS
+sha256sum --check --ignore-missing SHA256SUMS
 ```
 
-On macOS the binaries are not notarised: extract the archive, then right-click →
-*Open* (or `xattr -d com.apple.quarantine keyfob`) once.
+On Windows extract the `.zip` (`Expand-Archive`) and run `keyfob.exe`; check the
+download with `Get-FileHash keyfob-windows-x86_64.zip` against `SHA256SUMS`. On
+macOS the binaries are not notarised: right-click → *Open* (or
+`xattr -d com.apple.quarantine keyfob`) once.
 
 Alternatively build from source with a stable Rust toolchain. The crate is
 `publish = false`:

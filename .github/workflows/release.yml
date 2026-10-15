@@ -1,6 +1,11 @@
 # Builds the release artifacts and publishes a GitHub Release when a version
 # tag (v*) is pushed. Produces zip (Windows) and tar.gz (Linux, macOS) archives
-# with the `keyfob` binary plus the source archives.
+# with the `keyfob` binary, plus the source archives and a SHA256SUMS file.
+#
+# Asset names are stable across releases (keyfob-linux-x86_64.tar.gz, ...), so
+# https://github.com/jpenren/keyfob-idp/releases/latest/download/<asset> always
+# resolves to the newest build. Versions stay visible inside the archive, whose
+# directory is keyfob-<tag>-<target>.
 
 name: Release
 
@@ -20,7 +25,7 @@ jobs:
     name: Check tag matches Cargo.toml
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Verify the tag matches the crate version
         run: |
           version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
@@ -39,18 +44,18 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            ext: ""
+            asset: keyfob-linux-x86_64
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            ext: ".exe"
+            asset: keyfob-windows-x86_64
           - os: macos-latest
             target: aarch64-apple-darwin
-            ext: ""
+            asset: keyfob-macos-arm64
           - os: macos-latest
             target: x86_64-apple-darwin
-            ext: ""
+            asset: keyfob-macos-x86_64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -69,7 +74,7 @@ jobs:
           New-Item -ItemType Directory -Path $stage | Out-Null
           Copy-Item "target/${{ matrix.target }}/release/keyfob.exe" $stage
           Copy-Item README.md, LICENSE-MIT, LICENSE-APACHE, examples/keyfob.minimal.yaml, examples/keyfob.full.yaml $stage
-          Compress-Archive -Path $stage -DestinationPath "$stage.zip"
+          Compress-Archive -Path $stage -DestinationPath "${{ matrix.asset }}.zip"
 
       # Linux and macOS: tar.gz.
       - name: Package (Unix)
@@ -82,15 +87,13 @@ jobs:
           chmod +x "$stage/keyfob"
           cp README.md LICENSE-MIT LICENSE-APACHE "$stage/"
           cp examples/keyfob.minimal.yaml examples/keyfob.full.yaml "$stage/"
-          tar -czf "$stage.tar.gz" "$stage"
+          tar -czf "${{ matrix.asset }}.tar.gz" "$stage"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: keyfob-${{ matrix.target }}
-          path: |
-            keyfob-*.tar.gz
-            keyfob-*.zip
+          path: ${{ matrix.asset }}.*
           if-no-files-found: error
 
   source:
@@ -98,18 +101,18 @@ jobs:
     needs: check-tag
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Create source archives
         shell: bash
         run: |
           stage="keyfob-${GITHUB_REF_NAME}"
-          git archive --format=tar --prefix="$stage/" HEAD | gzip -9 > "$stage-src.tar.gz"
-          git archive --format=zip --prefix="$stage/" HEAD > "$stage-src.zip"
+          git archive --format=tar --prefix="$stage/" HEAD | gzip -9 > keyfob-src.tar.gz
+          git archive --format=zip --prefix="$stage/" HEAD > keyfob-src.zip
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: keyfob-src
-          path: keyfob-*-src.*
+          path: keyfob-src.*
           if-no-files-found: error
 
   release:
@@ -118,12 +121,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
+      - name: Generate SHA256SUMS
+        shell: bash
+        run: |
+          cd dist
+          rm -f SHA256SUMS
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
       - name: Create release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: dist/*
           generate_release_notes: true
