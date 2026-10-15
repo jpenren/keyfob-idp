@@ -7,7 +7,7 @@
 Start it, get real `id_token` / `access_token` values, and point your app at it —
 no Keycloak, no Docker, no account.
 
-[![CI](https://github.com/OWNER/keyfob-idp/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/keyfob-idp/actions/workflows/ci.yml)
+[![CI](https://github.com/jpenren/keyfob-idp/actions/workflows/ci.yml/badge.svg)](https://github.com/jpenren/keyfob-idp/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
 
 </div>
