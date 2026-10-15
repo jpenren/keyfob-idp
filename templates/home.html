@@ -28,13 +28,13 @@
       font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     }
     header.top {
-      padding: 20px 24px 8px; max-width: 980px; margin: 0 auto;
+      padding: 20px 24px 8px; margin: 0 auto;
       display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
     }
     header.top h1 { margin: 0; font-size: 20px; }
     header.top .logo { display: block; height: 34px; width: auto; }
     header.top .version { color: var(--muted); font-size: 13px; }
-    main { max-width: 980px; margin: 0 auto; padding: 8px 24px 64px; }
+    main { margin: 0 auto; padding: 8px 24px 64px; }
     section { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin: 16px 0; }
     h2 { font-size: 15px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 14px; }
     h3 { font-size: 14px; margin: 18px 0 8px; }
@@ -88,7 +88,7 @@
     summary { cursor: pointer; font-size: 13px; color: var(--muted); }
     .muted { color: var(--muted); }
     .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
-    footer { max-width: 980px; margin: 0 auto; padding: 0 24px 40px; color: var(--muted); font-size: 12.5px; }
+    footer { margin: 0 auto; padding: 0 24px 40px; color: var(--muted); font-size: 12.5px; }
     .toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 8px 16px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; }
     .toast.show { opacity: .95; }
   </style>
@@ -427,13 +427,7 @@
     var facts = [
       ["Version", info.version], ["OS", info.os + " / " + info.arch],
       ["Uptime", formatDuration(info.uptime_seconds)],
-      ["Config", info.config_path],
-      ["Config loaded", info.config_loaded_at ? new Date(info.config_loaded_at).toISOString() : "n/a"],
-      ["Issuer", info.issuer],
-      ["Signing", info.algorithm + " · kid " + info.kid + " · " + info.key_origin],
-      ["Login mode", info.login_mode],
-      ["Grants", (info.grants || []).join(", ")],
-      ["Scopes", (info.scopes || []).join(", ")]
+      ["Issuer", info.issuer]
     ].map(function (pair) {
       return '<div class="kv"><span class="k">' + escapeHtml(pair[0]) + '</span><span class="v">' + escapeHtml(pair[1]) + "</span></div>";
     }).join("");

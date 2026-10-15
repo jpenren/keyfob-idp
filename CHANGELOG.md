@@ -11,6 +11,8 @@ All notable changes to this project will be documented in this file. This projec
 
 ### Changed
 
+- The home page **Server** section now shows only `Version`, `OS`, `Uptime` and `Issuer`; the `Config`, `Config loaded`, `Login mode`, `Signing`, `Scopes` and `Grants` rows were removed. Those values are still returned by `/ui/info`, and scopes and grants remain per client in the **Clients** table.
+- The home page no longer caps its content at 980px, so the header, sections and footer use the full window width.
 - Updated `rand` to 0.10 (`rand::rng()`, `rand::fill`, `rand::distr::Alphanumeric`); RSA key generation keeps using the OS-backed `rand_core` 0.6 generator via `rsa::rand_core::OsRng`, now enabled explicitly with the `getrandom` feature of `rsa`.
 - Example configurations (`examples/keyfob.minimal.yaml`, `examples/keyfob.full.yaml`) and the file written by `keyfob init` now include Keycloak-compatible `realm_access.roles` and `resource_access.<client_id>.roles` claims.
 
