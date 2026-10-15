@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file. This projec
 
 ## [Unreleased]
 
+### Added
+
+- Release workflow (`.github/workflows/release.yml`): pushing a `v*` tag publishes a GitHub Release with `keyfob` binaries for x86_64 Linux, x86_64 Windows, and x86_64/aarch64 macOS (`.tar.gz`, Windows `.zip`) and source archives (`.tar.gz`, `.zip`), after checking that the tag matches the crate version.
+
 ### Changed
 
 - Example configurations (`examples/keyfob.minimal.yaml`, `examples/keyfob.full.yaml`) and the file written by `keyfob init` now include Keycloak-compatible `realm_access.roles` and `resource_access.<client_id>.roles` claims.

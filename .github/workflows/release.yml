@@ -1,0 +1,130 @@
+# Builds the release artifacts and publishes a GitHub Release when a version
+# tag (v*) is pushed. Produces zip (Windows) and tar.gz (Linux, macOS) archives
+# with the `keyfob` binary plus the source archives.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check-tag:
+    name: Check tag matches Cargo.toml
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify the tag matches the crate version
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::Tag '$GITHUB_REF_NAME' does not match Cargo.toml version '$version'. Bump the version or tag 'v$version'."
+            exit 1
+          fi
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: check-tag
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            ext: ""
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            ext: ".exe"
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            ext: ""
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            ext: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - name: Build
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      # Windows: zip via PowerShell, which is always present on the runner.
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $stage = "keyfob-$env:GITHUB_REF_NAME-${{ matrix.target }}"
+          New-Item -ItemType Directory -Path $stage | Out-Null
+          Copy-Item "target/${{ matrix.target }}/release/keyfob.exe" $stage
+          Copy-Item README.md, LICENSE-MIT, LICENSE-APACHE, examples/keyfob.minimal.yaml, examples/keyfob.full.yaml $stage
+          Compress-Archive -Path $stage -DestinationPath "$stage.zip"
+
+      # Linux and macOS: tar.gz.
+      - name: Package (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          stage="keyfob-${GITHUB_REF_NAME}-${{ matrix.target }}"
+          mkdir -p "$stage"
+          cp "target/${{ matrix.target }}/release/keyfob" "$stage/"
+          chmod +x "$stage/keyfob"
+          cp README.md LICENSE-MIT LICENSE-APACHE "$stage/"
+          cp examples/keyfob.minimal.yaml examples/keyfob.full.yaml "$stage/"
+          tar -czf "$stage.tar.gz" "$stage"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: keyfob-${{ matrix.target }}
+          path: |
+            keyfob-*.tar.gz
+            keyfob-*.zip
+          if-no-files-found: error
+
+  source:
+    name: Package sources
+    needs: check-tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create source archives
+        shell: bash
+        run: |
+          stage="keyfob-${GITHUB_REF_NAME}"
+          git archive --format=tar --prefix="$stage/" HEAD | gzip -9 > "$stage-src.tar.gz"
+          git archive --format=zip --prefix="$stage/" HEAD > "$stage-src.zip"
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: keyfob-src
+          path: keyfob-*-src.*
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: [build, source]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true

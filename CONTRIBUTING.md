@@ -55,6 +55,27 @@ A change is considered done when it includes:
 - [ ] Documentation updates (including `docs/architecture.md` where relevant).
 - [ ] A `CHANGELOG.md` entry under `## [Unreleased]`.
 
+## Cutting a release
+
+Releases are published by CI (`.github/workflows/release.yml`) when a version
+tag is pushed:
+
+1. Move the entries under `## [Unreleased]` in `CHANGELOG.md` into a new
+   `## [X.Y.Z] - YYYY-MM-DD` section and update the link references.
+2. Bump `version` in `Cargo.toml` (the tag must match it exactly).
+3. Commit, then tag and push:
+
+   ```sh
+   git commit -am "chore: release vX.Y.Z"
+   git tag vX.Y.Z
+   git push origin main vX.Y.Z
+   ```
+
+CI verifies that the tag matches the crate version, builds `keyfob` for
+x86_64 Linux, x86_64 Windows, and x86_64/aarch64 macOS, and attaches the
+binaries (`.tar.gz`, Windows `.zip`) plus source archives (`.tar.gz`, `.zip`)
+to a GitHub Release with generated release notes.
+
 ## Scope of a pull request
 
 The project is implemented in phases described in `docs/architecture.md`. Complete
