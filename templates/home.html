@@ -28,13 +28,13 @@
       font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     }
     header.top {
-      padding: 20px 24px 8px; margin: 0 auto;
+      max-width: 1216px; padding: 20px 24px 8px; margin: 0 auto;
       display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
     }
     header.top h1 { margin: 0; font-size: 20px; }
     header.top .logo { display: block; height: 34px; width: auto; }
     header.top .version { color: var(--muted); font-size: 13px; }
-    main { margin: 0 auto; padding: 8px 24px 64px; }
+    main { max-width: 1216px; margin: 0 auto; padding: 8px 24px 64px; }
     section { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin: 16px 0; }
     h2 { font-size: 15px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 14px; }
     h3 { font-size: 14px; margin: 18px 0 8px; }
@@ -44,6 +44,7 @@
     code, pre, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
     code { background: var(--code-bg); padding: 1px 5px; border-radius: 5px; font-size: 13px; }
     pre { background: var(--code-bg); padding: 12px; border-radius: 8px; overflow: auto; font-size: 12.5px; margin: 0; white-space: pre-wrap; word-break: break-all; }
+    pre .ts { border-bottom: 1px dotted var(--muted); cursor: help; }
     .banner { border-radius: 10px; padding: 10px 14px; margin: 12px 0; font-size: 13.5px; }
     .banner.dev { background: var(--warn-bg); color: var(--warn); font-weight: 500; }
     .banner.error { background: var(--danger-bg); color: var(--danger); }
@@ -88,7 +89,7 @@
     summary { cursor: pointer; font-size: 13px; color: var(--muted); }
     .muted { color: var(--muted); }
     .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
-    footer { margin: 0 auto; padding: 0 24px 40px; color: var(--muted); font-size: 12.5px; }
+    footer { max-width: 1216px; margin: 0 auto; padding: 0 24px 40px; color: var(--muted); font-size: 12.5px; }
     .toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 8px 16px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; }
     .toast.show { opacity: .95; }
   </style>
@@ -510,15 +511,30 @@
   function renderClaims(decoded) {
     var html = "<details><summary>Decoded header</summary><pre>" +
       escapeHtml(JSON.stringify(decoded.header, null, 2)) + "</pre></details>";
-    var times = ["iat", "exp", "nbf", "auth_time"].map(function (claim) {
-      if (typeof decoded.payload[claim] !== "number") { return ""; }
-      return "<div class=\"kv\"><span class=\"k\">" + claim + '</span><span class="v">' +
-        escapeHtml(humanTime(decoded.payload[claim])) + " (" + escapeHtml(relativeTime(decoded.payload[claim])) + ")</span></div>";
-    }).join("");
     html += "<details open><summary>Decoded payload</summary>" +
-      (times ? '<div style="margin:8px 0">' + times + "</div>" : "") +
-      "<pre>" + escapeHtml(JSON.stringify(decoded.payload, null, 2)) + "</pre></details>";
+      renderPayload(decoded.payload) + "</details>";
     return html;
+  }
+
+  // Renders a decoded payload as JSON, tagging the JWT timestamp claims so a
+  // tooltip explains the underlying date and remaining time on hover.
+  function renderPayload(payload) {
+    var text = JSON.stringify(payload, null, 2);
+    var pattern = /("(?:iat|exp|nbf|auth_time)":\s*)(-?\d+)/g;
+    var out = "", last = 0, match;
+    while ((match = pattern.exec(text)) !== null) {
+      out += escapeHtml(text.slice(last, match.index)) + escapeHtml(match[1]) +
+        '<span class="ts" title="' + escapeHtml(timeTooltip(match[2])) + '">' +
+        escapeHtml(match[2]) + "</span>";
+      last = pattern.lastIndex;
+    }
+    out += escapeHtml(text.slice(last));
+    return "<pre>" + out + "</pre>";
+  }
+
+  function timeTooltip(value) {
+    var seconds = parseInt(value, 10);
+    return humanTime(seconds) + " (" + relativeTime(seconds) + ")";
   }
 
   function renderCurl(request) {
