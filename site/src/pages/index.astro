@@ -102,14 +102,12 @@ const releasesUrl = `${repoUrl}/releases/latest`;
       .brand {
         display: flex;
         align-items: center;
-        gap: 0.75rem;
-        font-weight: 700;
-        font-size: 1.25rem;
-        color: var(--fg);
+        text-decoration: none;
       }
-      .brand img {
-        height: 28px;
+      .brand img.logo {
+        height: 34px;
         width: auto;
+        display: block;
       }
       .nav-links {
         display: flex;
@@ -503,9 +501,8 @@ const releasesUrl = `${repoUrl}/releases/latest`;
     <!-- Navigation -->
     <header class="navbar">
       <div class="container nav-inner">
-        <a href="#" class="brand">
-          <img src={`${base}/logo-dark.svg`} alt="keyfob logo" width="30" height="30" />
-          <span>keyfob</span>
+        <a href="#" class="brand" aria-label="keyfob home">
+          <img src={`${base}/logo-dark.svg`} alt="keyfob" class="logo" height="34" width="109" />
         </a>
         <ul class="nav-links">
           <li><a href="#features">Features</a></li>
