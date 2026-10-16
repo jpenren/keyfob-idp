@@ -1,8 +1,8 @@
 <div align="center">
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg">
-  <img src="assets/logo.svg" alt="keyfob-idp" width="330">
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/jpenren/keyfob-idp/raw/main/assets/logo-dark.svg">
+  <img src="https://github.com/jpenren/keyfob-idp/raw/main/assets/logo.svg" alt="keyfob-idp" width="330">
 </picture>
 
 # keyfob-idp

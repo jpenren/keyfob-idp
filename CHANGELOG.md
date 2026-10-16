@@ -21,6 +21,7 @@ All notable changes to this project will be documented in this file. This projec
 
 ### Fixed
 
+- The README logo now uses absolute GitHub `raw` URLs instead of relative `assets/...` paths, so it renders in the downloaded source archive and in any Markdown viewer, not only on the repository page.
 - The home page token generator no longer fails with `redirect_uri ... is not registered`: the authorization-code tab lists only public clients whose `redirect_uris` contains the generator callback (`<origin>/ui/callback`), shows the others as disabled with the URI to add, preselects a usable client (the internal `keyfob-ui` one by default) and disables the button with an explanation when no client can complete the flow.
 
 ## [0.1.0] - 2026-10-15
