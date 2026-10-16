@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file. This projec
 
 ## [Unreleased]
 
+### Added
+
+- Astro-based landing page in `site/` featuring responsive comparison metrics against Keycloak, feature highlights, interactive quickstart installation tabs, and configuration previews.
+- GitHub Pages deployment workflow (`.github/workflows/pages.yml`) to automatically build and publish the landing site on pushes to `main`.
+
+
 ## [0.2.0] - 2026-10-16
 
 ### Added

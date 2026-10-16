@@ -1,0 +1,854 @@
+---
+// Keyfob Landing Page
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const repoUrl = "https://github.com/jpenren/keyfob-idp";
+const releasesUrl = `${repoUrl}/releases/latest`;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>keyfob · Lightweight In-Memory OIDC / OAuth 2.0 Provider</title>
+    <meta
+      name="description"
+      content="Zero-setup, in-memory OAuth 2.0 and OpenID Connect identity provider for local development, integration tests, and CI. Sub-second boot, no JVM, no database."
+    />
+    <link rel="icon" type="image/svg+xml" href={`${base}/logo.svg`} />
+    <meta property="og:title" content="keyfob-idp · Local OAuth 2.0 / OIDC Provider" />
+    <meta
+      property="og:description"
+      content="Fast, in-memory identity provider for local development and CI testing. Starts in milliseconds with zero dependencies."
+    />
+    <meta property="og:image" content={`${base}/social-preview.png`} />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <style>
+      :root {
+        --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+
+        --bg: #090d16;
+        --bg-elevated: #111726;
+        --card-bg: rgba(18, 24, 38, 0.7);
+        --card-border: rgba(255, 255, 255, 0.08);
+        --card-border-hover: rgba(56, 189, 248, 0.35);
+
+        --fg: #f1f5f9;
+        --fg-muted: #94a3b8;
+        --fg-dim: #64748b;
+
+        --accent: #38bdf8;
+        --accent-glow: rgba(56, 189, 248, 0.2);
+        --accent-secondary: #818cf8;
+
+        --code-bg: #0c101a;
+        --success: #34d399;
+        --warning: #fbbf24;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        background-color: var(--bg);
+        color: var(--fg);
+        font-family: var(--font-sans);
+        line-height: 1.6;
+        overflow-x: hidden;
+        background-image: 
+          radial-gradient(ellipse 80% 50% at 50% -20%, rgba(56, 189, 248, 0.15), transparent),
+          radial-gradient(circle at 100% 40%, rgba(129, 140, 248, 0.08), transparent 40%),
+          radial-gradient(circle at 0% 70%, rgba(56, 189, 248, 0.06), transparent 40%);
+        background-attachment: fixed;
+      }
+
+      a {
+        color: var(--accent);
+        text-decoration: none;
+        transition: color 0.15s ease;
+      }
+      a:hover {
+        color: #7dd3fc;
+      }
+
+      /* Container */
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 1.5rem;
+      }
+
+      /* Navigation */
+      header.navbar {
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        backdrop-filter: blur(16px);
+        background: rgba(9, 13, 22, 0.8);
+        border-bottom: 1px solid var(--card-border);
+      }
+      .nav-inner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 4.25rem;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        font-weight: 700;
+        font-size: 1.25rem;
+        color: var(--fg);
+      }
+      .brand img {
+        height: 28px;
+        width: auto;
+      }
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 1.75rem;
+        list-style: none;
+      }
+      .nav-links a {
+        color: var(--fg-muted);
+        font-size: 0.925rem;
+        font-weight: 500;
+      }
+      .nav-links a:hover {
+        color: var(--fg);
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        font-size: 0.925rem;
+        font-weight: 600;
+        padding: 0.625rem 1.25rem;
+        border-radius: 9999px;
+        transition: all 0.2s ease;
+        cursor: pointer;
+        border: 1px solid transparent;
+      }
+      .btn-primary {
+        background: linear-gradient(135deg, #38bdf8 0%, #2563eb 100%);
+        color: #fff;
+        box-shadow: 0 4px 20px rgba(56, 189, 248, 0.25);
+      }
+      .btn-primary:hover {
+        box-shadow: 0 6px 25px rgba(56, 189, 248, 0.4);
+        transform: translateY(-1px);
+        color: #fff;
+      }
+      .btn-outline {
+        background: rgba(255, 255, 255, 0.04);
+        border-color: var(--card-border);
+        color: var(--fg);
+      }
+      .btn-outline:hover {
+        background: rgba(255, 255, 255, 0.08);
+        border-color: rgba(255, 255, 255, 0.2);
+        color: #fff;
+      }
+
+      /* Hero Section */
+      .hero {
+        padding: 5rem 0 3.5rem;
+        text-align: center;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.35rem 0.85rem;
+        border-radius: 9999px;
+        background: rgba(56, 189, 248, 0.1);
+        border: 1px solid rgba(56, 189, 248, 0.25);
+        color: var(--accent);
+        font-size: 0.825rem;
+        font-weight: 600;
+        margin-bottom: 1.5rem;
+      }
+      .badge .dot {
+        width: 6px;
+        height: 6px;
+        background: var(--accent);
+        border-radius: 50%;
+        box-shadow: 0 0 8px var(--accent);
+      }
+      .hero h1 {
+        font-size: clamp(2.25rem, 5.5vw, 4rem);
+        font-weight: 800;
+        line-height: 1.15;
+        letter-spacing: -0.03em;
+        margin-bottom: 1.25rem;
+        background: linear-gradient(180deg, #ffffff 40%, #94a3b8 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+      .hero h1 .highlight {
+        background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+      .hero p.lead {
+        font-size: clamp(1.05rem, 2vw, 1.25rem);
+        color: var(--fg-muted);
+        max-width: 740px;
+        margin: 0 auto 2.25rem;
+        font-weight: 400;
+      }
+      .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+        margin-bottom: 3.5rem;
+      }
+
+      /* Terminal Card */
+      .terminal-window {
+        max-width: 860px;
+        margin: 0 auto;
+        background: var(--code-bg);
+        border: 1px solid var(--card-border);
+        border-radius: 14px;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05);
+        overflow: hidden;
+        text-align: left;
+      }
+      .terminal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.75rem 1rem;
+        background: rgba(255, 255, 255, 0.03);
+        border-bottom: 1px solid var(--card-border);
+      }
+      .terminal-dots {
+        display: flex;
+        gap: 6px;
+      }
+      .terminal-dots span {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+      }
+      .dot-red { background: #ef4444; }
+      .dot-yellow { background: #f59e0b; }
+      .dot-green { background: #10b981; }
+      .terminal-title {
+        font-size: 0.8rem;
+        font-family: var(--font-mono);
+        color: var(--fg-dim);
+      }
+      .terminal-body {
+        padding: 1.25rem 1.5rem;
+        font-family: var(--font-mono);
+        font-size: 0.88rem;
+        color: #e2e8f0;
+        line-height: 1.65;
+        overflow-x: auto;
+      }
+      .terminal-body .cmd {
+        color: #38bdf8;
+      }
+      .terminal-body .dim {
+        color: #64748b;
+      }
+      .terminal-body .green {
+        color: #34d399;
+      }
+      .terminal-body .yellow {
+        color: #fbbf24;
+      }
+
+      /* Comparison / Numbers Section */
+      .section {
+        padding: 5rem 0;
+      }
+      .section-header {
+        text-align: center;
+        max-width: 680px;
+        margin: 0 auto 3rem;
+      }
+      .section-tag {
+        font-size: 0.8rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--accent);
+        margin-bottom: 0.5rem;
+      }
+      .section-title {
+        font-size: clamp(1.75rem, 3.5vw, 2.5rem);
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        margin-bottom: 0.75rem;
+      }
+      .section-subtitle {
+        color: var(--fg-muted);
+        font-size: 1.05rem;
+      }
+
+      /* Comparison Table / Cards */
+      .comparison-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 3rem;
+      }
+      .metric-card {
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-radius: 16px;
+        padding: 1.75rem;
+        position: relative;
+        backdrop-filter: blur(10px);
+        transition: border-color 0.2s ease, transform 0.2s ease;
+      }
+      .metric-card:hover {
+        border-color: var(--card-border-hover);
+        transform: translateY(-2px);
+      }
+      .metric-label {
+        font-size: 0.85rem;
+        color: var(--fg-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 0.5rem;
+      }
+      .metric-value {
+        font-size: 2.25rem;
+        font-weight: 800;
+        color: #fff;
+        line-height: 1;
+        margin-bottom: 0.75rem;
+      }
+      .metric-value.highlight {
+        color: var(--accent);
+      }
+      .metric-desc {
+        font-size: 0.9rem;
+        color: var(--fg-dim);
+      }
+
+      /* Features Grid */
+      .features-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        gap: 1.5rem;
+      }
+      .feature-card {
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-radius: 16px;
+        padding: 2rem;
+        backdrop-filter: blur(10px);
+        transition: all 0.2s ease;
+      }
+      .feature-card:hover {
+        border-color: var(--card-border-hover);
+        background: rgba(22, 30, 48, 0.8);
+      }
+      .feature-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+        background: rgba(56, 189, 248, 0.12);
+        color: var(--accent);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.35rem;
+        margin-bottom: 1.25rem;
+      }
+      .feature-title {
+        font-size: 1.2rem;
+        font-weight: 600;
+        margin-bottom: 0.6rem;
+      }
+      .feature-text {
+        font-size: 0.925rem;
+        color: var(--fg-muted);
+        line-height: 1.6;
+      }
+
+      /* Quickstart Section */
+      .install-card {
+        max-width: 900px;
+        margin: 0 auto;
+        background: var(--bg-elevated);
+        border: 1px solid var(--card-border);
+        border-radius: 16px;
+        overflow: hidden;
+      }
+      .tab-bar {
+        display: flex;
+        background: rgba(0, 0, 0, 0.25);
+        border-bottom: 1px solid var(--card-border);
+        overflow-x: auto;
+      }
+      .tab-btn {
+        padding: 0.9rem 1.4rem;
+        background: transparent;
+        border: none;
+        color: var(--fg-muted);
+        font-family: var(--font-sans);
+        font-weight: 600;
+        font-size: 0.9rem;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        transition: all 0.15s ease;
+        white-space: nowrap;
+      }
+      .tab-btn.active {
+        color: var(--accent);
+        border-bottom-color: var(--accent);
+        background: rgba(56, 189, 248, 0.05);
+      }
+      .tab-content {
+        padding: 1.75rem;
+        display: none;
+      }
+      .tab-content.active {
+        display: block;
+      }
+      .code-block-wrapper {
+        position: relative;
+        background: var(--code-bg);
+        border-radius: 10px;
+        border: 1px solid var(--card-border);
+        overflow: hidden;
+      }
+      .code-block-wrapper pre {
+        padding: 1.25rem;
+        font-family: var(--font-mono);
+        font-size: 0.88rem;
+        overflow-x: auto;
+        color: #e2e8f0;
+        line-height: 1.65;
+      }
+      .copy-btn {
+        position: absolute;
+        top: 0.75rem;
+        right: 0.75rem;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid var(--card-border);
+        color: var(--fg-muted);
+        padding: 0.35rem 0.65rem;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+      .copy-btn:hover {
+        background: rgba(255, 255, 255, 0.15);
+        color: #fff;
+      }
+
+      /* Config Preview */
+      .config-preview {
+        max-width: 900px;
+        margin: 2.5rem auto 0;
+      }
+
+      /* Footer */
+      footer {
+        border-top: 1px solid var(--card-border);
+        padding: 3.5rem 0 2.5rem;
+        color: var(--fg-dim);
+        font-size: 0.875rem;
+      }
+      .footer-inner {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1.5rem;
+      }
+      .footer-links {
+        display: flex;
+        gap: 1.5rem;
+        list-style: none;
+      }
+      .footer-links a {
+        color: var(--fg-muted);
+      }
+      .footer-links a:hover {
+        color: var(--fg);
+      }
+
+      @media (max-width: 768px) {
+        .nav-links {
+          display: none;
+        }
+        .hero {
+          padding: 3.5rem 0 2rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Navigation -->
+    <header class="navbar">
+      <div class="container nav-inner">
+        <a href="#" class="brand">
+          <img src={`${base}/logo.svg`} alt="keyfob logo" width="30" height="30" />
+          <span>keyfob</span>
+        </a>
+        <ul class="nav-links">
+          <li><a href="#features">Features</a></li>
+          <li><a href="#comparison">Why Keyfob</a></li>
+          <li><a href="#quickstart">Quickstart</a></li>
+          <li><a href="#config">Configuration</a></li>
+          <li><a href={`${repoUrl}#documentation`} target="_blank" rel="noreferrer">Docs</a></li>
+        </ul>
+        <div style="display: flex; gap: 0.75rem;">
+          <a href={repoUrl} target="_blank" rel="noreferrer" class="btn btn-outline">
+            <svg height="18" width="18" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
+            </svg>
+            <span>GitHub</span>
+          </a>
+          <a href="#quickstart" class="btn btn-primary">Get Started</a>
+        </div>
+      </div>
+    </header>
+
+    <!-- Hero -->
+    <section class="hero container">
+      <div class="badge">
+        <span class="dot"></span>
+        <span>v0.2.0 · Zero-Setup In-Memory IdP</span>
+      </div>
+      <h1>
+        Identity Provider for Local Dev<br />
+        <span class="highlight">Without the Keycloak Bloat</span>
+      </h1>
+      <p class="lead">
+        A single static binary that boots in milliseconds, serves RFC-compliant OAuth 2.0 / OpenID Connect endpoints, and signs genuine RS256 JWT tokens. No JVM, no database, no dynamic complexity.
+      </p>
+      <div class="hero-actions">
+        <a href="#quickstart" class="btn btn-primary" style="padding: 0.75rem 1.75rem; font-size: 1rem;">
+          Download Binary
+        </a>
+        <a href={repoUrl} target="_blank" rel="noreferrer" class="btn btn-outline" style="padding: 0.75rem 1.75rem; font-size: 1rem;">
+          View on GitHub
+        </a>
+      </div>
+
+      <!-- Terminal Mockup -->
+      <div class="terminal-window">
+        <div class="terminal-header">
+          <div class="terminal-dots">
+            <span class="dot-red"></span>
+            <span class="dot-yellow"></span>
+            <span class="dot-green"></span>
+          </div>
+          <div class="terminal-title">bash — keyfob run</div>
+          <div style="width: 40px;"></div>
+        </div>
+        <div class="terminal-body">
+          <p><span class="dim">$</span> <span class="cmd">keyfob run</span></p>
+          <p class="dim">2026-10-16T15:20:01Z  INFO keyfob: loading configuration from keyfob.yaml</p>
+          <p class="dim">2026-10-16T15:20:01Z  INFO keyfob: generated ephemeral 2048-bit RSA signing key (kid: k-2026-10-16)</p>
+          <p class="green">2026-10-16T15:20:01Z  INFO keyfob: listening on http://127.0.0.1:9000 (startup: 11.4 ms)</p>
+          <p class="dim">&nbsp;</p>
+          <p><span class="yellow">Endpoints ready:</span></p>
+          <p>  Discovery:     <span class="dim">http://127.0.0.1:9000/.well-known/openid-configuration</span></p>
+          <p>  JWKS:          <span class="dim">http://127.0.0.1:9000/.well-known/jwks.json</span></p>
+          <p>  Authorization: <span class="dim">http://127.0.0.1:9000/oauth/authorize</span></p>
+          <p>  Token:         <span class="dim">http://127.0.0.1:9000/oauth/token</span></p>
+          <p>  Token UI:      <span class="dim">http://127.0.0.1:9000/ (interactive generator)</span></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Comparison Section -->
+    <section id="comparison" class="section container">
+      <div class="section-header">
+        <div class="section-tag">Comparison</div>
+        <h2 class="section-title">Built for Speed and Developer Sanity</h2>
+        <p class="section-subtitle">
+          Keycloak is great for enterprise production, but painful when running unit tests or local microservices.
+        </p>
+      </div>
+
+      <div class="comparison-grid">
+        <div class="metric-card">
+          <div class="metric-label">Startup Time</div>
+          <div class="metric-value highlight">&lt; 20 ms</div>
+          <div class="metric-desc">Keyfob boots immediately. Keycloak containers typically take 45–90 seconds to warm up.</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Memory Footprint</div>
+          <div class="metric-value highlight">~15 MB</div>
+          <div class="metric-desc">Single lightweight native binary. No Java Virtual Machine or PostgreSQL database required.</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Test Reset</div>
+          <div class="metric-value highlight">1 HTTP Call</div>
+          <div class="metric-desc"><code>POST /debug/reset</code> instantly restores state to a clean slate between test runs.</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Configuration</div>
+          <div class="metric-value highlight">1 YAML File</div>
+          <div class="metric-desc">Deterministic config checked into git. No realm import exports or GUI clicking.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="section container" style="padding-top: 0;">
+      <div class="section-header">
+        <div class="section-tag">Features</div>
+        <h2 class="section-title">Everything Needed for Modern OIDC</h2>
+        <p class="section-subtitle">
+          Fully standard-compliant so your real application code does not need mock adapters.
+        </p>
+      </div>
+
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">🛡️</div>
+          <h3 class="feature-title">Strict Standards Compliance</h3>
+          <p class="feature-text">
+            Implements RFC 6749, RFC 7636 (mandatory PKCE S256 for public clients), RFC 7009 (Token Revocation), RFC 7662 (Introspection), and OpenID Connect Core 1.0.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">🔑</div>
+          <h3 class="feature-title">Cryptographic RS256 Tokens</h3>
+          <p class="feature-text">
+            Signs genuine RS256 JWTs using 2048-bit RSA keys. Publishes a real JWKS keyset at <code>/.well-known/jwks.json</code> that your JWT verifier validates seamlessly.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">👤</div>
+          <h3 class="feature-title">Mock Users & Custom Claims</h3>
+          <p class="feature-text">
+            Seed users, passwords, custom scopes, roles, and profile claims directly in your YAML file. Supports mock MFA workflows and argon2 password hashing.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">🖥️</div>
+          <h3 class="feature-title">Interactive Token Generator</h3>
+          <p class="feature-text">
+            Built-in Web UI hosted at the root endpoint. Generate authorization codes, access tokens, and refresh tokens directly in your browser without writing curl scripts.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">🔄</div>
+          <h3 class="feature-title">Zero-Downtime Hot Reload</h3>
+          <p class="feature-text">
+            Edit your <code>keyfob.yaml</code> client definitions or users and reload changes instantly via SIGHUP or in dev mode without terminating active sessions.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">🦀</div>
+          <h3 class="feature-title">Engineered in Pure Rust</h3>
+          <p class="feature-text">
+            Built with <code>#![forbid(unsafe_code)]</code>, constant-time secret comparison with <code>subtle</code>, and TLS via pure <code>rustls</code> (ring) without OpenSSL dependencies.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Quickstart / Installation -->
+    <section id="quickstart" class="section container">
+      <div class="section-header">
+        <div class="section-tag">Quickstart</div>
+        <h2 class="section-title">Up and Running in Seconds</h2>
+        <p class="section-subtitle">Choose your preferred installation method.</p>
+      </div>
+
+      <div class="install-card">
+        <div class="tab-bar">
+          <button class="tab-btn active" data-tab="tab-linux">Linux</button>
+          <button class="tab-btn" data-tab="tab-macos">macOS</button>
+          <button class="tab-btn" data-tab="tab-windows">Windows</button>
+          <button class="tab-btn" data-tab="tab-cargo">Cargo</button>
+          <button class="tab-btn" data-tab="tab-docker">Docker</button>
+        </div>
+
+        <div id="tab-linux" class="tab-content active">
+          <div class="code-block-wrapper">
+            <button class="copy-btn" data-copy="linux-code">Copy</button>
+            <pre id="linux-code"><code># Download the Linux x86_64 binary
+curl -LO {releasesUrl}/download/keyfob-linux-x86_64.tar.gz
+tar -xzf keyfob-linux-x86_64.tar.gz
+install -m 755 keyfob-*/keyfob ~/.local/bin/keyfob
+
+# Initialize a default configuration and run
+keyfob init
+keyfob run</code></pre>
+          </div>
+        </div>
+
+        <div id="tab-macos" class="tab-content">
+          <div class="code-block-wrapper">
+            <button class="copy-btn" data-copy="macos-code">Copy</button>
+            <pre id="macos-code"><code># For Apple Silicon (M1/M2/M3/M4):
+curl -LO {releasesUrl}/download/keyfob-macos-arm64.tar.gz
+tar -xzf keyfob-macos-arm64.tar.gz
+install -m 755 keyfob-*/keyfob /usr/local/bin/keyfob
+
+# Initialize and run
+keyfob init
+keyfob run</code></pre>
+          </div>
+        </div>
+
+        <div id="tab-windows" class="tab-content">
+          <div class="code-block-wrapper">
+            <button class="copy-btn" data-copy="win-code">Copy</button>
+            <pre id="win-code"><code># In PowerShell:
+Invoke-WebRequest -Uri "{releasesUrl}/download/keyfob-windows-x86_64.zip" -OutFile "keyfob.zip"
+Expand-Archive -Path "keyfob.zip" -DestinationPath "."
+.\keyfob-*\keyfob.exe init
+.\keyfob-*\keyfob.exe run</code></pre>
+          </div>
+        </div>
+
+        <div id="tab-cargo" class="tab-content">
+          <div class="code-block-wrapper">
+            <button class="copy-btn" data-copy="cargo-code">Copy</button>
+            <pre id="cargo-code"><code># Install via Cargo
+cargo install --git https://github.com/jpenren/keyfob-idp
+
+keyfob init
+keyfob run</code></pre>
+          </div>
+        </div>
+
+        <div id="tab-docker" class="tab-content">
+          <div class="code-block-wrapper">
+            <button class="copy-btn" data-copy="docker-code">Copy</button>
+            <pre id="docker-code"><code># Run Keyfob with an ephemeral configuration
+docker run -d --name keyfob \
+  -p 9000:9000 \
+  ghcr.io/jpenren/keyfob-idp:latest
+
+# Open http://localhost:9000 in your browser</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Config Preview -->
+      <div id="config" class="config-preview">
+        <div class="section-header" style="margin-bottom: 1.5rem; text-align: left;">
+          <h3 style="font-size: 1.35rem; font-weight: 700; margin-bottom: 0.25rem;">Minimal `keyfob.yaml`</h3>
+          <p style="color: var(--fg-muted); font-size: 0.95rem;">
+            A clean declarative setup you can commit into your repository for reproducible testing.
+          </p>
+        </div>
+        <div class="code-block-wrapper">
+          <button class="copy-btn" data-copy="yaml-code">Copy</button>
+          <pre id="yaml-code"><code>server:
+  host: 127.0.0.1
+  port: 9000
+
+clients:
+  # Public SPA / Frontend client (PKCE S256 required)
+  - client_id: frontend-app
+    public: true
+    redirect_uris:
+      - http://localhost:3000/api/auth/callback
+
+  # Confidential Backend Service
+  - client_id: backend-service
+    client_secret: dev-secret-123
+    allowed_grant_types:
+      - client_credentials
+      - authorization_code
+      - refresh_token
+
+users:
+  - id: dev-user-1
+    email: alice@example.com
+    password: password123
+    name: "Alice Developer"
+    roles: ["admin", "developer"]
+</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+      <div class="container footer-inner">
+        <div>
+          <p style="font-weight: 600; color: var(--fg); margin-bottom: 0.25rem;">keyfob-idp</p>
+          <p>Local OAuth 2.0 / OpenID Connect provider for development & CI.</p>
+        </div>
+        <ul class="footer-links">
+          <li><a href={`${repoUrl}#license`} target="_blank" rel="noreferrer">Apache-2.0 / MIT</a></li>
+          <li><a href={`${repoUrl}/blob/main/CHANGELOG.md`} target="_blank" rel="noreferrer">Changelog</a></li>
+          <li><a href={`${repoUrl}/issues`} target="_blank" rel="noreferrer">Issues</a></li>
+          <li><a href={repoUrl} target="_blank" rel="noreferrer">GitHub</a></li>
+        </ul>
+      </div>
+    </footer>
+
+    <!-- Interactive script for tabs and copy buttons -->
+    <script>
+      // Tab switcher
+      const tabButtons = document.querySelectorAll('.tab-btn');
+      const tabContents = document.querySelectorAll('.tab-content');
+
+      tabButtons.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const targetId = btn.getAttribute('data-tab');
+          if (!targetId) return;
+
+          tabButtons.forEach((b) => b.classList.remove('active'));
+          tabContents.forEach((c) => c.classList.remove('active'));
+
+          btn.classList.add('active');
+          const targetContent = document.getElementById(targetId);
+          if (targetContent) targetContent.classList.add('active');
+        });
+      });
+
+      // Copy buttons
+      const copyButtons = document.querySelectorAll('.copy-btn');
+      copyButtons.forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const targetId = btn.getAttribute('data-copy');
+          if (!targetId) return;
+          const targetEl = document.getElementById(targetId);
+          if (!targetEl) return;
+
+          try {
+            await navigator.clipboard.writeText(targetEl.innerText);
+            const originalText = btn.textContent;
+            btn.textContent = 'Copied!';
+            btn.style.color = '#34d399';
+            setTimeout(() => {
+              btn.textContent = originalText;
+              btn.style.color = '';
+            }, 2000);
+          } catch (err) {
+            console.error('Failed to copy', err);
+          }
+        });
+      });
+    </script>
+  </body>
+</html>
