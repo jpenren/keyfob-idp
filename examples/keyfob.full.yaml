@@ -45,6 +45,7 @@ cors:
 # ----------------------------------------------------------- diagnostics
 debug: false               # expose GET /debug/tokens with recently issued tokens
 allow_password_grant: false # enable the deprecated Resource Owner Password grant
+allow_token_exchange: false # enable RFC 8693 Token Exchange (opt-in per client)
 
 # ---------------------------------------------------------------- clients
 clients:
@@ -78,6 +79,15 @@ clients:
       - http://localhost:8080
     grant_types: [authorization_code, refresh_token]
     allowed_scopes: [openid, profile, email, offline_access]
+
+  # Gateway that exchanges access tokens (RFC 8693 token exchange). Requires
+  # `allow_token_exchange: true`. `audience` lists the values the client may
+  # request via `resource` / `audience`; the client's own id is always allowed.
+  # - client_id: my-gateway
+  #   client_secret: gateway-secret
+  #   grant_types: [token_exchange]
+  #   allowed_scopes: [openid, profile]
+  #   audience: [my-api]
 
 # ------------------------------------------------------------------ users
 # Users are only required by flows that authenticate a person (authorization

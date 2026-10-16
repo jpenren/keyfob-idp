@@ -49,6 +49,8 @@ pub async fn token(State(state): State<AppState>, headers: HeaderMap, body: Stri
     };
 
     let now = super::support::now();
+    let audiences = params.get_all("audience");
+    let resources = params.get_all("resource");
     let result = exchange(TokenExchange {
         runtime: &runtime,
         keys: &state.keys,
@@ -62,6 +64,13 @@ pub async fn token(State(state): State<AppState>, headers: HeaderMap, body: Stri
         scope: params.get("scope"),
         username: params.get("username"),
         password: params.get("password"),
+        subject_token: params.get("subject_token"),
+        subject_token_type: params.get("subject_token_type"),
+        actor_token: params.get("actor_token"),
+        actor_token_type: params.get("actor_token_type"),
+        requested_token_type: params.get("requested_token_type"),
+        audiences: &audiences,
+        resources: &resources,
         now,
     })
     .await;
@@ -79,6 +88,9 @@ pub async fn token(State(state): State<AppState>, headers: HeaderMap, body: Stri
             }
             if let Some(refresh_token) = issued.refresh_token {
                 body["refresh_token"] = json!(refresh_token);
+            }
+            if let Some(issued_token_type) = issued.issued_token_type {
+                body["issued_token_type"] = json!(issued_token_type);
             }
             json_response(StatusCode::OK, body)
         }

@@ -72,6 +72,9 @@ pub struct Config {
     /// Enables the deprecated Resource Owner Password Credentials grant.
     #[serde(default)]
     pub allow_password_grant: bool,
+    /// Enables the Token Exchange grant (RFC 8693).
+    #[serde(default)]
+    pub allow_token_exchange: bool,
     #[serde(default)]
     pub clients: Vec<ClientCfg>,
     #[serde(default)]
@@ -275,15 +278,32 @@ pub enum GrantType {
     ClientCredentials,
     RefreshToken,
     Password,
+    TokenExchange,
 }
 
 impl GrantType {
+    /// The value sent as `grant_type` on the token endpoint.
+    ///
+    /// It matches the YAML name for the standard grants; Token Exchange uses
+    /// the URN mandated by RFC 8693.
     pub fn as_str(self) -> &'static str {
         match self {
             Self::AuthorizationCode => "authorization_code",
             Self::ClientCredentials => "client_credentials",
             Self::RefreshToken => "refresh_token",
             Self::Password => "password",
+            Self::TokenExchange => "urn:ietf:params:oauth:grant-type:token-exchange",
+        }
+    }
+
+    /// The name used in `keyfob.yaml` (`grant_types`) and in user-facing hints.
+    pub fn config_name(self) -> &'static str {
+        match self {
+            Self::AuthorizationCode => "authorization_code",
+            Self::ClientCredentials => "client_credentials",
+            Self::RefreshToken => "refresh_token",
+            Self::Password => "password",
+            Self::TokenExchange => "token_exchange",
         }
     }
 }

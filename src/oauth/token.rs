@@ -4,14 +4,27 @@
 //! Everything here is independent from axum: the HTTP layer only parses the
 //! request, authenticates the client and serialises the result.
 
+use serde_json::{Value, json};
+
 use crate::config::{ClientCfg, GrantType, UserCfg};
-use crate::crypto::{KeySet, encode_jwt, pkce_verify, random_token, verify_password};
+use crate::crypto::{
+    KeySet, TokenValidation, decode_jwt, encode_jwt, pkce_verify, random_token, verify_password,
+};
 use crate::oidc::{ClaimsInput, access_token_claims, has_scope, id_token_claims};
 use crate::state::Runtime;
 use crate::store::{RecentToken, RefreshToken, Store};
 
 use super::error::OAuthError;
 use super::scope::{OFFLINE_ACCESS, narrow_scopes, resolve_scopes};
+
+/// `grant_type` value mandated by RFC 8693.
+pub const TOKEN_EXCHANGE_GRANT: &str = "urn:ietf:params:oauth:grant-type:token-exchange";
+
+/// RFC 8693 token type identifiers this server understands.
+const TOKEN_TYPE_ACCESS: &str = "urn:ietf:params:oauth:token-type:access_token";
+const TOKEN_TYPE_JWT: &str = "urn:ietf:params:oauth:token-type:jwt";
+const TOKEN_TYPE_ID: &str = "urn:ietf:params:oauth:token-type:id_token";
+const TOKEN_TYPE_REFRESH: &str = "urn:ietf:params:oauth:token-type:refresh_token";
 
 /// Token set produced by a successful exchange.
 #[derive(Debug, Clone)]
@@ -21,6 +34,8 @@ pub struct IssuedTokens {
     pub refresh_token: Option<String>,
     pub scopes: Vec<String>,
     pub access_expires_in: i64,
+    /// RFC 8693 `issued_token_type`; only set by the token exchange grant.
+    pub issued_token_type: Option<String>,
 }
 
 /// A parsed token request plus the authenticated client.
@@ -37,6 +52,20 @@ pub struct TokenExchange<'a> {
     pub scope: Option<&'a str>,
     pub username: Option<&'a str>,
     pub password: Option<&'a str>,
+    /// RFC 8693 `subject_token`.
+    pub subject_token: Option<&'a str>,
+    /// RFC 8693 `subject_token_type`.
+    pub subject_token_type: Option<&'a str>,
+    /// RFC 8693 `actor_token` (delegation).
+    pub actor_token: Option<&'a str>,
+    /// RFC 8693 `actor_token_type`.
+    pub actor_token_type: Option<&'a str>,
+    /// RFC 8693 `requested_token_type`.
+    pub requested_token_type: Option<&'a str>,
+    /// RFC 8693 `audience` values (may be repeated).
+    pub audiences: &'a [String],
+    /// RFC 8707 `resource` values (may be repeated).
+    pub resources: &'a [String],
     pub now: i64,
 }
 
@@ -47,12 +76,14 @@ pub async fn exchange(request: TokenExchange<'_>) -> Result<IssuedTokens, OAuthE
         "client_credentials" => client_credentials(request).await,
         "refresh_token" => refresh_token(request).await,
         "password" => password(request).await,
+        TOKEN_EXCHANGE_GRANT => token_exchange(request).await,
         other => Err(OAuthError::unsupported_grant_type(format!(
             "grant_type '{other}' is not supported"
         ))
-        .with_hint(
-            "Supported grant types: authorization_code, client_credentials, refresh_token, password",
-        )),
+        .with_hint(format!(
+            "Supported grant types: authorization_code, client_credentials, refresh_token, \
+             password, {TOKEN_EXCHANGE_GRANT}"
+        ))),
     }
 }
 
@@ -134,6 +165,10 @@ async fn authorization_code(request: TokenExchange<'_>) -> Result<IssuedTokens, 
         auth_time: stored.auth_time,
         now: request.now,
         grant_type: "authorization_code",
+        act: None,
+        audience: None,
+        subject: None,
+        mint_refresh: true,
     };
     issue.issue().await
 }
@@ -165,6 +200,10 @@ async fn client_credentials(request: TokenExchange<'_>) -> Result<IssuedTokens, 
         auth_time: request.now,
         now: request.now,
         grant_type: "client_credentials",
+        act: None,
+        audience: None,
+        subject: None,
+        mint_refresh: true,
     };
     issue.issue().await
 }
@@ -224,6 +263,10 @@ async fn refresh_token(request: TokenExchange<'_>) -> Result<IssuedTokens, OAuth
         auth_time: stored.auth_time,
         now: request.now,
         grant_type: "refresh_token",
+        act: None,
+        audience: None,
+        subject: None,
+        mint_refresh: true,
     };
 
     let family = stored.family.clone();
@@ -295,8 +338,348 @@ async fn password(request: TokenExchange<'_>) -> Result<IssuedTokens, OAuthError
         auth_time: request.now,
         now: request.now,
         grant_type: "password",
+        act: None,
+        audience: None,
+        subject: None,
+        mint_refresh: true,
     };
     issue.issue().await
+}
+
+// -------------------------------------------------------- token exchange
+
+/// RFC 8693 Token Exchange.
+///
+/// The authenticated client presents a `subject_token` (and optionally an
+/// `actor_token`) and receives a fresh access token. Impersonation issues a
+/// token for the subject; delegation adds an `act` claim naming the actor.
+/// Scopes are never widened and no refresh token is issued.
+async fn token_exchange(request: TokenExchange<'_>) -> Result<IssuedTokens, OAuthError> {
+    if !request.runtime.config.allow_token_exchange {
+        return Err(
+            OAuthError::unsupported_grant_type("the token exchange grant is disabled")
+                .with_hint("Set `allow_token_exchange: true` in keyfob.yaml to enable it"),
+        );
+    }
+    require_grant(request.client, GrantType::TokenExchange)?;
+
+    let Some(subject_token) = request.subject_token.filter(|value| !value.is_empty()) else {
+        return Err(OAuthError::invalid_request(
+            "missing required parameter: subject_token",
+        ));
+    };
+    let Some(subject_token_type) = request.subject_token_type.filter(|value| !value.is_empty())
+    else {
+        return Err(OAuthError::invalid_request(
+            "missing required parameter: subject_token_type",
+        ));
+    };
+    let subject = resolve_token(
+        &request,
+        subject_token,
+        parse_token_type(subject_token_type)?,
+        true,
+    )
+    .await?;
+
+    let actor = match request.actor_token.filter(|value| !value.is_empty()) {
+        Some(actor_token) => {
+            let Some(actor_token_type) = request.actor_token_type.filter(|value| !value.is_empty())
+            else {
+                return Err(OAuthError::invalid_request(
+                    "missing required parameter: actor_token_type",
+                ));
+            };
+            Some(
+                resolve_token(
+                    &request,
+                    actor_token,
+                    parse_token_type(actor_token_type)?,
+                    false,
+                )
+                .await?,
+            )
+        }
+        None => {
+            if request
+                .actor_token_type
+                .is_some_and(|value| !value.is_empty())
+            {
+                return Err(OAuthError::invalid_request(
+                    "actor_token_type was provided without actor_token",
+                ));
+            }
+            None
+        }
+    };
+
+    // Only access tokens can be requested (RFC 8693 `requested_token_type`).
+    let issued_token_type = match request
+        .requested_token_type
+        .filter(|value| !value.is_empty())
+    {
+        None => TOKEN_TYPE_ACCESS,
+        Some(value) if value == TOKEN_TYPE_ACCESS || value == TOKEN_TYPE_JWT => TOKEN_TYPE_ACCESS,
+        Some(other) => {
+            return Err(OAuthError::invalid_request(format!(
+                "requested_token_type '{other}' is not supported"
+            ))
+            .with_hint("The token exchange grant only issues access tokens"));
+        }
+    };
+
+    let audience = resolve_audience(request.client, request.audiences, request.resources)?;
+    let scopes = exchange_scopes(&request, &subject)?;
+
+    let user = match subject.username.as_deref() {
+        Some(username) => Some(request.runtime.user(username).ok_or_else(|| {
+            OAuthError::invalid_grant("the subject of the token no longer exists")
+        })?),
+        None => None,
+    };
+    let act = actor.map(|actor| build_act(&actor, &request.runtime.issuer));
+
+    let issue = IssueInput {
+        runtime: request.runtime,
+        keys: request.keys,
+        store: request.store,
+        client: request.client,
+        user,
+        scopes,
+        nonce: None,
+        session_id: subject.session_id.clone(),
+        auth_time: subject.auth_time,
+        now: request.now,
+        grant_type: GrantType::TokenExchange.config_name(),
+        act,
+        audience,
+        subject: Some(subject.sub.clone()),
+        mint_refresh: false,
+    };
+    let mut issued = issue.issue().await?;
+    issued.issued_token_type = Some(issued_token_type.to_string());
+    Ok(issued)
+}
+
+/// Effective scopes for an exchange: the subject token is the ceiling and the
+/// requesting client must be allowed every resulting scope.
+fn exchange_scopes(
+    request: &TokenExchange<'_>,
+    subject: &ResolvedToken,
+) -> Result<Vec<String>, OAuthError> {
+    let mut scopes = if subject.id_token {
+        // An ID token carries no scope: fall back to the client's own scopes.
+        resolve_scopes(request.client, request.scope)?
+    } else {
+        narrow_scopes(request.client, &subject.scopes, request.scope)?
+    };
+    scopes.retain(|scope| scope != OFFLINE_ACCESS);
+    for scope in &scopes {
+        if !request.client.allows_scope(scope) {
+            return Err(OAuthError::invalid_scope(format!(
+                "scope '{scope}' is not allowed through token exchange for client '{}'",
+                request.client.client_id
+            )));
+        }
+    }
+    Ok(scopes)
+}
+
+/// Validates RFC 8693 `audience` / RFC 8707 `resource` against the client.
+fn resolve_audience(
+    client: &ClientCfg,
+    audiences: &[String],
+    resources: &[String],
+) -> Result<Option<Vec<String>>, OAuthError> {
+    let mut requested: Vec<String> = Vec::new();
+    for value in audiences.iter().chain(resources.iter()) {
+        let value = value.trim();
+        if value.is_empty() || requested.iter().any(|existing| existing == value) {
+            continue;
+        }
+        requested.push(value.to_string());
+    }
+    if requested.is_empty() {
+        return Ok(None);
+    }
+    let allowed: Vec<&String> = if client.audience.is_empty() {
+        vec![&client.client_id]
+    } else {
+        client.audience.iter().collect()
+    };
+    for value in &requested {
+        if !allowed.contains(&value) {
+            return Err(OAuthError::invalid_target(format!(
+                "audience '{value}' is not allowed for client '{}'",
+                client.client_id
+            ))
+            .with_hint(
+                "List it under the client's `audience` in keyfob.yaml, or omit \
+                 `audience` / `resource`",
+            ));
+        }
+    }
+    Ok(Some(requested))
+}
+
+/// Token types this server accepts in `subject_token_type` / `actor_token_type`.
+#[derive(Debug, Clone, Copy)]
+enum TokenKind {
+    Access,
+    Id,
+    Refresh,
+}
+
+fn parse_token_type(value: &str) -> Result<TokenKind, OAuthError> {
+    match value {
+        TOKEN_TYPE_ACCESS | TOKEN_TYPE_JWT => Ok(TokenKind::Access),
+        TOKEN_TYPE_ID => Ok(TokenKind::Id),
+        TOKEN_TYPE_REFRESH => Ok(TokenKind::Refresh),
+        other => Err(
+            OAuthError::invalid_request(format!("unsupported token type '{other}'")).with_hint(
+                "Supported types: urn:ietf:params:oauth:token-type:access_token, \
+             ...:jwt, ...:id_token and ...:refresh_token",
+            ),
+        ),
+    }
+}
+
+/// The validated identity carried by a subject or actor token.
+struct ResolvedToken {
+    sub: String,
+    username: Option<String>,
+    scopes: Vec<String>,
+    /// Whether the token carries no scope concept at all (an ID token), in
+    /// which case the client's own scopes are the ceiling.
+    id_token: bool,
+    session_id: Option<String>,
+    auth_time: i64,
+    /// The token's own `act`, preserved when the token becomes an actor.
+    act: Option<Value>,
+}
+
+async fn resolve_token(
+    request: &TokenExchange<'_>,
+    token: &str,
+    kind: TokenKind,
+    allow_refresh: bool,
+) -> Result<ResolvedToken, OAuthError> {
+    match kind {
+        TokenKind::Refresh => {
+            if !allow_refresh {
+                return Err(OAuthError::invalid_request(
+                    "a refresh token cannot be used as an actor token",
+                ));
+            }
+            let Some(entry) = request.store.get_refresh_token(token).await else {
+                return Err(OAuthError::invalid_grant(
+                    "refresh token is unknown or has expired",
+                ));
+            };
+            if entry.revoked {
+                return Err(
+                    OAuthError::invalid_grant("refresh token has already been used").with_hint(
+                        "Refresh tokens rotate on every use; the whole session was revoked",
+                    ),
+                );
+            }
+            if entry.expires_at <= request.now {
+                return Err(OAuthError::invalid_grant("refresh token has expired"));
+            }
+            if entry.client_id != request.client.client_id {
+                return Err(OAuthError::invalid_grant(
+                    "refresh token was issued to a different client",
+                ));
+            }
+            Ok(ResolvedToken {
+                sub: entry.username.clone(),
+                username: Some(entry.username),
+                scopes: entry.scopes,
+                id_token: false,
+                session_id: entry.session_id,
+                auth_time: entry.auth_time,
+                act: None,
+            })
+        }
+        TokenKind::Access | TokenKind::Id => {
+            // Decode without enforcing `exp` so the check uses the request's
+            // clock (consistent with introspection) instead of the system clock.
+            let claims = decode_jwt(
+                request.keys,
+                token,
+                &TokenValidation::new(&request.runtime.issuer).allow_expired(),
+            )
+            .map_err(|error| {
+                OAuthError::invalid_grant(format!("token could not be validated: {error}"))
+                    .with_hint("The token must be an unexpired token issued by this server")
+            })?;
+
+            if claims
+                .get("exp")
+                .and_then(Value::as_i64)
+                .is_none_or(|exp| exp <= request.now)
+            {
+                return Err(OAuthError::invalid_grant("the token has expired"));
+            }
+
+            // Only access tokens carry `client_id`; ID tokens do not.
+            let is_access_token = claims.get("client_id").and_then(Value::as_str).is_some();
+            match kind {
+                TokenKind::Access if !is_access_token => {
+                    return Err(OAuthError::invalid_grant(
+                        "subject_token_type is an access token but the token is not one",
+                    ));
+                }
+                TokenKind::Id if is_access_token => {
+                    return Err(OAuthError::invalid_grant(
+                        "subject_token_type is an ID token but the token is an access token",
+                    ));
+                }
+                _ => {}
+            }
+
+            if let Some(jti) = claims.get("jti").and_then(Value::as_str)
+                && request.store.is_access_token_revoked(jti).await
+            {
+                return Err(OAuthError::invalid_grant("the token was revoked"));
+            }
+
+            let Some(sub) = claims.get("sub").and_then(Value::as_str) else {
+                return Err(OAuthError::invalid_grant("the token has no subject"));
+            };
+            Ok(ResolvedToken {
+                sub: sub.to_string(),
+                username: request.runtime.user(sub).map(|user| user.username.clone()),
+                scopes: claims
+                    .get("scope")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .split_whitespace()
+                    .map(str::to_string)
+                    .collect(),
+                id_token: matches!(kind, TokenKind::Id),
+                session_id: claims
+                    .get("sid")
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
+                auth_time: claims
+                    .get("auth_time")
+                    .and_then(Value::as_i64)
+                    .unwrap_or(request.now),
+                act: claims.get("act").cloned(),
+            })
+        }
+    }
+}
+
+/// Builds the `act` claim for delegation (RFC 8693 section 4.1), nesting the
+/// actor's own `act` chain so a chain of delegations is preserved.
+fn build_act(actor: &ResolvedToken, issuer: &str) -> Value {
+    let mut act = json!({ "sub": actor.sub, "iss": issuer });
+    if let Some(nested) = &actor.act {
+        act["act"] = nested.clone();
+    }
+    act
 }
 
 // ------------------------------------------------------------- issuance
@@ -313,6 +696,14 @@ struct IssueInput<'a> {
     auth_time: i64,
     now: i64,
     grant_type: &'a str,
+    /// Delegation chain (`act`) attached to the access token (RFC 8693).
+    act: Option<Value>,
+    /// Overrides the access token audience (RFC 8693 `audience` / `resource`).
+    audience: Option<Vec<String>>,
+    /// Overrides the token subject (RFC 8693: the subject token's `sub`).
+    subject: Option<String>,
+    /// Whether this grant may mint a refresh token at all.
+    mint_refresh: bool,
 }
 
 impl IssueInput<'_> {
@@ -332,6 +723,9 @@ impl IssueInput<'_> {
             now: self.now,
             ttl_seconds: access_ttl,
             access_token: None,
+            act: self.act.as_ref(),
+            audience: self.audience.as_deref(),
+            subject: self.subject.as_deref(),
         });
         let access_token = encode_jwt(self.keys, &access_claims).map_err(|error| {
             OAuthError::new(super::error::ErrorCode::ServerError, error.to_string())
@@ -350,6 +744,9 @@ impl IssueInput<'_> {
                     now: self.now,
                     ttl_seconds: id_ttl,
                     access_token: Some(&access_token),
+                    act: None,
+                    audience: None,
+                    subject: None,
                 });
                 Some(encode_jwt(self.keys, &claims).map_err(|error| {
                     OAuthError::new(super::error::ErrorCode::ServerError, error.to_string())
@@ -358,7 +755,7 @@ impl IssueInput<'_> {
             _ => None,
         };
 
-        let refresh_token = if refresh_allowed(self.client, &self.scopes) {
+        let refresh_token = if self.mint_refresh && refresh_allowed(self.client, &self.scopes) {
             let token = random_token();
             let entry = RefreshToken {
                 token: token.clone(),
@@ -408,6 +805,7 @@ impl IssueInput<'_> {
             refresh_token,
             scopes: self.scopes,
             access_expires_in: access_ttl,
+            issued_token_type: None,
         })
     }
 }
@@ -455,6 +853,10 @@ pub async fn issue_direct(
         auth_time: now,
         now,
         grant_type,
+        act: None,
+        audience: None,
+        subject: None,
+        mint_refresh: true,
     };
     input.issue().await
 }
@@ -466,11 +868,11 @@ fn require_grant(client: &ClientCfg, grant: GrantType) -> Result<(), OAuthError>
         Err(OAuthError::unauthorized_client(format!(
             "client '{}' is not allowed to use the {} grant",
             client.client_id,
-            grant.as_str()
+            grant.config_name()
         ))
         .with_hint(format!(
             "Add '{}' to this client's grant_types in keyfob.yaml",
-            grant.as_str()
+            grant.config_name()
         )))
     }
 }
@@ -482,6 +884,7 @@ mod tests {
     use crate::crypto::{DEFAULT_KEY_BITS, KeySet};
     use crate::oauth::authorize::{self, AuthorizeRequest};
     use crate::store::Store;
+    use serde_json::Value;
 
     struct Fixture {
         runtime: Runtime,
@@ -498,6 +901,7 @@ mod tests {
         let config = config::parse_str(
             r#"
 allow_password_grant: true
+allow_token_exchange: true
 clients:
   - client_id: spa
     public: true
@@ -508,6 +912,9 @@ clients:
   - client_id: cli
     client_secret: cli-secret
     grant_types: [password]
+  - client_id: exchanger
+    client_secret: exch-secret
+    grant_types: [token_exchange]
 users:
   - username: alice
     password: alice123
@@ -520,6 +927,57 @@ users:
             runtime: Runtime::build(config),
             store: Store::new(),
         }
+    }
+
+    /// A token-exchange request with every optional field cleared; tests set
+    /// only what they exercise.
+    fn token_request<'a>(
+        fixture: &'a Fixture,
+        client_id: &str,
+        grant_type: &'a str,
+    ) -> TokenExchange<'a> {
+        TokenExchange {
+            runtime: &fixture.runtime,
+            keys: keys(),
+            store: &fixture.store,
+            client: client(fixture, client_id),
+            grant_type,
+            code: None,
+            redirect_uri: None,
+            code_verifier: None,
+            refresh_token: None,
+            scope: None,
+            username: None,
+            password: None,
+            subject_token: None,
+            subject_token_type: None,
+            actor_token: None,
+            actor_token_type: None,
+            requested_token_type: None,
+            audiences: &[],
+            resources: &[],
+            now: 20,
+        }
+    }
+
+    /// Issues a user access token for `alice` through the authorization code
+    /// grant, to use as a token exchange subject.
+    async fn user_access_token(fixture: &Fixture, scopes: &str) -> String {
+        let code = authorize_code(fixture, scopes, VERIFIER).await;
+        let mut request = token_request(fixture, "spa", "authorization_code");
+        request.code = Some(&code);
+        request.redirect_uri = Some("http://localhost:3000/cb");
+        request.code_verifier = Some(VERIFIER);
+        exchange(request).await.unwrap().access_token
+    }
+
+    fn claims(fixture: &Fixture, token: &str) -> Value {
+        crate::crypto::decode_jwt(
+            keys(),
+            token,
+            &crate::crypto::TokenValidation::new(&fixture.runtime.issuer).allow_expired(),
+        )
+        .unwrap()
     }
 
     fn client<'a>(fixture: &'a Fixture, id: &str) -> &'a ClientCfg {
@@ -566,6 +1024,13 @@ users:
             scope: None,
             username: None,
             password: None,
+            subject_token: None,
+            subject_token_type: None,
+            actor_token: None,
+            actor_token_type: None,
+            requested_token_type: None,
+            audiences: &[],
+            resources: &[],
             now: 20,
         })
         .await
@@ -604,6 +1069,13 @@ users:
             scope: None,
             username: None,
             password: None,
+            subject_token: None,
+            subject_token_type: None,
+            actor_token: None,
+            actor_token_type: None,
+            requested_token_type: None,
+            audiences: &[],
+            resources: &[],
             now: 20,
         })
         .await
@@ -624,6 +1096,13 @@ users:
             scope: None,
             username: None,
             password: None,
+            subject_token: None,
+            subject_token_type: None,
+            actor_token: None,
+            actor_token_type: None,
+            requested_token_type: None,
+            audiences: &[],
+            resources: &[],
             now: 21,
         })
         .await
@@ -648,6 +1127,13 @@ users:
             scope: None,
             username: None,
             password: None,
+            subject_token: None,
+            subject_token_type: None,
+            actor_token: None,
+            actor_token_type: None,
+            requested_token_type: None,
+            audiences: &[],
+            resources: &[],
             now: 20,
         })
         .await
@@ -671,6 +1157,13 @@ users:
             scope: None,
             username: None,
             password: None,
+            subject_token: None,
+            subject_token_type: None,
+            actor_token: None,
+            actor_token_type: None,
+            requested_token_type: None,
+            audiences: &[],
+            resources: &[],
             now: 20,
         })
         .await
@@ -696,6 +1189,13 @@ users:
             scope: None,
             username: None,
             password: None,
+            subject_token: None,
+            subject_token_type: None,
+            actor_token: None,
+            actor_token_type: None,
+            requested_token_type: None,
+            audiences: &[],
+            resources: &[],
             now: 20,
         })
         .await
@@ -715,6 +1215,13 @@ users:
             scope: None,
             username: None,
             password: None,
+            subject_token: None,
+            subject_token_type: None,
+            actor_token: None,
+            actor_token_type: None,
+            requested_token_type: None,
+            audiences: &[],
+            resources: &[],
             now: 30,
         })
         .await
@@ -743,6 +1250,13 @@ users:
             scope: None,
             username: None,
             password: None,
+            subject_token: None,
+            subject_token_type: None,
+            actor_token: None,
+            actor_token_type: None,
+            requested_token_type: None,
+            audiences: &[],
+            resources: &[],
             now: 40,
         })
         .await
@@ -773,6 +1287,13 @@ users:
             scope: Some("openid"),
             username: Some("alice"),
             password: Some("alice123"),
+            subject_token: None,
+            subject_token_type: None,
+            actor_token: None,
+            actor_token_type: None,
+            requested_token_type: None,
+            audiences: &[],
+            resources: &[],
             now: 20,
         })
         .await;
@@ -796,6 +1317,13 @@ users:
             scope: None,
             username: Some("alice"),
             password: Some("wrong"),
+            subject_token: None,
+            subject_token_type: None,
+            actor_token: None,
+            actor_token_type: None,
+            requested_token_type: None,
+            audiences: &[],
+            resources: &[],
             now: 20,
         })
         .await
@@ -819,6 +1347,13 @@ users:
             scope: None,
             username: None,
             password: None,
+            subject_token: None,
+            subject_token_type: None,
+            actor_token: None,
+            actor_token_type: None,
+            requested_token_type: None,
+            audiences: &[],
+            resources: &[],
             now: 20,
         })
         .await
@@ -847,5 +1382,206 @@ users:
         let client = &config.clients[0];
         assert!(!refresh_allowed(client, &["openid".to_string()]));
         assert!(refresh_allowed(client, &["offline_access".to_string()]));
+    }
+
+    #[tokio::test]
+    async fn token_exchange_impersonates_a_user() {
+        let fixture = fixture();
+        let subject = user_access_token(&fixture, "openid profile").await;
+
+        let mut request = token_request(&fixture, "exchanger", TOKEN_EXCHANGE_GRANT);
+        request.subject_token = Some(&subject);
+        request.subject_token_type = Some(TOKEN_TYPE_ACCESS);
+        let issued = exchange(request).await.unwrap();
+
+        assert_eq!(issued.issued_token_type.as_deref(), Some(TOKEN_TYPE_ACCESS));
+        assert!(
+            issued.refresh_token.is_none(),
+            "token exchange never mints a refresh token"
+        );
+        let claims = claims(&fixture, &issued.access_token);
+        assert_eq!(claims["sub"], "alice");
+        assert_eq!(claims["client_id"], "exchanger");
+        assert_eq!(claims["scope"], "openid profile");
+        assert!(claims.get("act").is_none(), "impersonation has no act");
+    }
+
+    #[tokio::test]
+    async fn token_exchange_accepts_an_id_token_subject() {
+        let fixture = fixture();
+        let code = authorize_code(&fixture, "openid profile", VERIFIER).await;
+        let mut request = token_request(&fixture, "spa", "authorization_code");
+        request.code = Some(&code);
+        request.redirect_uri = Some("http://localhost:3000/cb");
+        request.code_verifier = Some(VERIFIER);
+        let id_token = exchange(request).await.unwrap().id_token.unwrap();
+
+        let mut request = token_request(&fixture, "exchanger", TOKEN_EXCHANGE_GRANT);
+        request.subject_token = Some(&id_token);
+        request.subject_token_type = Some(TOKEN_TYPE_ID);
+        request.scope = Some("openid");
+        let issued = exchange(request).await.unwrap();
+
+        let claims = claims(&fixture, &issued.access_token);
+        assert_eq!(claims["sub"], "alice");
+        assert_eq!(claims["scope"], "openid");
+    }
+
+    #[tokio::test]
+    async fn token_exchange_delegates_with_an_act_claim() {
+        let fixture = fixture();
+        let subject = user_access_token(&fixture, "openid").await;
+        let actor = {
+            let mut request = token_request(&fixture, "backend", "client_credentials");
+            request.scope = Some("openid");
+            exchange(request).await.unwrap().access_token
+        };
+
+        let mut request = token_request(&fixture, "exchanger", TOKEN_EXCHANGE_GRANT);
+        request.subject_token = Some(&subject);
+        request.subject_token_type = Some(TOKEN_TYPE_ACCESS);
+        request.actor_token = Some(&actor);
+        request.actor_token_type = Some(TOKEN_TYPE_ACCESS);
+        let issued = exchange(request).await.unwrap();
+
+        let claims = claims(&fixture, &issued.access_token);
+        assert_eq!(claims["sub"], "alice");
+        assert_eq!(claims["act"]["sub"], "backend");
+        assert_eq!(claims["act"]["iss"], fixture.runtime.issuer);
+    }
+
+    #[tokio::test]
+    async fn token_exchange_cannot_widen_scopes() {
+        let fixture = fixture();
+        let subject = user_access_token(&fixture, "openid").await;
+
+        let mut request = token_request(&fixture, "exchanger", TOKEN_EXCHANGE_GRANT);
+        request.subject_token = Some(&subject);
+        request.subject_token_type = Some(TOKEN_TYPE_ACCESS);
+        request.scope = Some("openid profile");
+        let error = exchange(request).await.unwrap_err();
+        assert_eq!(error.code, super::super::error::ErrorCode::InvalidScope);
+
+        let mut request = token_request(&fixture, "exchanger", TOKEN_EXCHANGE_GRANT);
+        request.subject_token = Some(&subject);
+        request.subject_token_type = Some(TOKEN_TYPE_ACCESS);
+        request.scope = Some("openid");
+        let issued = exchange(request).await.unwrap();
+        assert_eq!(issued.scopes, vec!["openid".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn token_exchange_validates_the_subject_token() {
+        let fixture = fixture();
+
+        let mut request = token_request(&fixture, "exchanger", TOKEN_EXCHANGE_GRANT);
+        request.subject_token = Some("not-a-jwt");
+        request.subject_token_type = Some(TOKEN_TYPE_ACCESS);
+        let error = exchange(request).await.unwrap_err();
+        assert_eq!(error.code, super::super::error::ErrorCode::InvalidGrant);
+
+        let mut request = token_request(&fixture, "exchanger", TOKEN_EXCHANGE_GRANT);
+        request.subject_token = Some("not-a-jwt");
+        let error = exchange(request).await.unwrap_err();
+        assert_eq!(error.code, super::super::error::ErrorCode::InvalidRequest);
+    }
+
+    #[tokio::test]
+    async fn token_exchange_restricts_the_audience() {
+        let fixture = fixture();
+        let subject = user_access_token(&fixture, "openid").await;
+
+        let other = vec!["other-api".to_string()];
+        let mut request = token_request(&fixture, "exchanger", TOKEN_EXCHANGE_GRANT);
+        request.subject_token = Some(&subject);
+        request.subject_token_type = Some(TOKEN_TYPE_ACCESS);
+        request.audiences = &other;
+        let error = exchange(request).await.unwrap_err();
+        assert_eq!(error.code, super::super::error::ErrorCode::InvalidTarget);
+
+        // The client's own id is always an allowed audience.
+        let allowed = vec!["exchanger".to_string()];
+        let mut request = token_request(&fixture, "exchanger", TOKEN_EXCHANGE_GRANT);
+        request.subject_token = Some(&subject);
+        request.subject_token_type = Some(TOKEN_TYPE_ACCESS);
+        request.audiences = &allowed;
+        let issued = exchange(request).await.unwrap();
+        let claims = claims(&fixture, &issued.access_token);
+        assert_eq!(claims["aud"][0], "exchanger");
+    }
+
+    #[tokio::test]
+    async fn token_exchange_refresh_subject_is_bound_to_its_client() {
+        let fixture = fixture();
+        let code = authorize_code(&fixture, "openid offline_access", VERIFIER).await;
+        let mut request = token_request(&fixture, "spa", "authorization_code");
+        request.code = Some(&code);
+        request.redirect_uri = Some("http://localhost:3000/cb");
+        request.code_verifier = Some(VERIFIER);
+        let refresh = exchange(request).await.unwrap().refresh_token.unwrap();
+
+        let mut request = token_request(&fixture, "exchanger", TOKEN_EXCHANGE_GRANT);
+        request.subject_token = Some(&refresh);
+        request.subject_token_type = Some(TOKEN_TYPE_REFRESH);
+        let error = exchange(request).await.unwrap_err();
+        assert_eq!(error.code, super::super::error::ErrorCode::InvalidGrant);
+    }
+
+    #[tokio::test]
+    async fn token_exchange_rejects_a_refresh_token_as_actor() {
+        let fixture = fixture();
+        let subject = user_access_token(&fixture, "openid").await;
+
+        let mut request = token_request(&fixture, "exchanger", TOKEN_EXCHANGE_GRANT);
+        request.subject_token = Some(&subject);
+        request.subject_token_type = Some(TOKEN_TYPE_ACCESS);
+        request.actor_token = Some("some-refresh-token");
+        request.actor_token_type = Some(TOKEN_TYPE_REFRESH);
+        let error = exchange(request).await.unwrap_err();
+        assert_eq!(error.code, super::super::error::ErrorCode::InvalidRequest);
+    }
+
+    #[tokio::test]
+    async fn token_exchange_is_disabled_by_default() {
+        let config = config::parse_str(
+            r#"
+clients:
+  - client_id: backend
+    client_secret: s
+    grant_types: [client_credentials]
+"#,
+            "test.yaml",
+        )
+        .unwrap();
+        let runtime = Runtime::build(config);
+        let store = Store::new();
+        let error = exchange(TokenExchange {
+            runtime: &runtime,
+            keys: keys(),
+            store: &store,
+            client: runtime.client("backend").unwrap(),
+            grant_type: TOKEN_EXCHANGE_GRANT,
+            code: None,
+            redirect_uri: None,
+            code_verifier: None,
+            refresh_token: None,
+            scope: None,
+            username: None,
+            password: None,
+            subject_token: None,
+            subject_token_type: None,
+            actor_token: None,
+            actor_token_type: None,
+            requested_token_type: None,
+            audiences: &[],
+            resources: &[],
+            now: 20,
+        })
+        .await
+        .unwrap_err();
+        assert_eq!(
+            error.code,
+            super::super::error::ErrorCode::UnsupportedGrantType
+        );
     }
 }

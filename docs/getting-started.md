@@ -33,8 +33,8 @@ keyfob run
 
 Then open **<http://127.0.0.1:9000/>** in a browser. The home page shows the
 resolved server configuration and an embedded **token generator** that can run
-every supported grant (client credentials, authorization code + PKCE, refresh
-token) without writing any `curl`.
+the interactive grants (client credentials, authorization code + PKCE, refresh
+token, password) without writing any `curl`.
 
 `keyfob run` prints a banner with the issuer and the listen address, for
 example:

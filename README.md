@@ -115,8 +115,9 @@ your client's `authority` / `issuer-uri` at it and you are done.
 - **Discovery**: `/.well-known/openid-configuration` and
   `/.well-known/oauth-authorization-server`.
 - **Grants**: authorization code + PKCE (`S256` mandatory for public clients),
-  client credentials, refresh token (rotating) and the deprecated password grant
-  (opt-in with `allow_password_grant: true`).
+  client credentials, refresh token (rotating), the deprecated password grant
+  (opt-in with `allow_password_grant: true`) and RFC 8693 token exchange with
+  impersonation and delegation (opt-in with `allow_token_exchange: true`).
 - **Tokens**: RS256 access tokens and ID tokens with `nonce`, `at_hash`,
   `auth_time`, `sid` and `azp`; introspectable and revocable.
 - **Keycloak-style JWKS**: `/jwks` and the `/protocol/openid-connect/certs` alias.
@@ -199,8 +200,9 @@ Use something else if you need any of the following:
 - Persistent users, sessions or tokens across restarts.
 - More than one issuer / realm in a single process.
 - Clustering, high availability or horizontal scaling.
-- Dynamic client registration, device flow, token exchange, PAR/JARM, ES256 or
-  EdDSA (all on the roadmap, none implemented yet).
+- Dynamic client registration, device flow, PAR/JARM, ES256 or EdDSA (all on
+  the roadmap, none implemented yet). Token exchange is available as an
+  access-token-only, opt-in grant (no SAML/JWT assertions, no `may_act`).
 - Full OpenID certification for compliance.
 
 ## Contributing

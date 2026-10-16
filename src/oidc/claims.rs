@@ -11,7 +11,7 @@ use sha2::{Digest, Sha256};
 use crate::config::{ClientCfg, UserCfg};
 
 /// Claims that providers own; user-defined claims may not override them.
-pub const RESERVED_CLAIMS: [&str; 15] = [
+pub const RESERVED_CLAIMS: [&str; 17] = [
     "iss",
     "sub",
     "aud",
@@ -27,6 +27,8 @@ pub const RESERVED_CLAIMS: [&str; 15] = [
     "scope",
     "client_id",
     "token_type",
+    "act",
+    "may_act",
 ];
 
 fn template_env() -> &'static Environment<'static> {
@@ -108,10 +110,19 @@ pub struct ClaimsInput<'a> {
     pub ttl_seconds: i64,
     /// Access token, when building the matching ID token (`at_hash`).
     pub access_token: Option<&'a str>,
+    /// Delegation chain (`act` claim) for RFC 8693 Token Exchange.
+    pub act: Option<&'a Value>,
+    /// Overrides the access token audience when it is set (Token Exchange).
+    pub audience: Option<&'a [String]>,
+    /// Overrides the subject when it is set (Token Exchange).
+    pub subject: Option<&'a str>,
 }
 
 impl ClaimsInput<'_> {
     fn subject(&self) -> String {
+        if let Some(subject) = self.subject {
+            return subject.to_string();
+        }
         match self.user {
             Some(user) => user.username.clone(),
             None => self.client.client_id.clone(),
@@ -119,6 +130,9 @@ impl ClaimsInput<'_> {
     }
 
     fn audience(&self) -> Value {
+        if let Some(audience) = self.audience {
+            return json!(audience);
+        }
         if self.client.audience.is_empty() {
             json!([self.client.client_id])
         } else {
@@ -192,6 +206,9 @@ pub fn access_token_claims(input: &ClaimsInput<'_>) -> Value {
     claims.insert("jti".into(), json!(uuid::Uuid::new_v4().to_string()));
     if let Some(session_id) = input.session_id {
         claims.insert("sid".into(), json!(session_id));
+    }
+    if let Some(act) = input.act {
+        claims.insert("act".into(), act.clone());
     }
 
     Value::Object(claims)
@@ -296,6 +313,9 @@ mod tests {
             now: 2_000,
             ttl_seconds: 900,
             access_token: None,
+            act: None,
+            audience: None,
+            subject: None,
         });
         assert_eq!(claims["iss"], "http://localhost:9000");
         assert_eq!(claims["sub"], "alice");
@@ -326,6 +346,9 @@ mod tests {
             now: 2_000,
             ttl_seconds: 900,
             access_token: Some("header.payload.signature"),
+            act: None,
+            audience: None,
+            subject: None,
         });
         assert_eq!(claims["aud"], "my-spa");
         assert_eq!(claims["nonce"], "n-1");
@@ -336,6 +359,54 @@ mod tests {
         assert!(claims.get("preferred_username").is_none());
         // roles are always included.
         assert_eq!(claims["roles"][0], "admin");
+    }
+
+    #[test]
+    fn access_token_carries_the_delegation_chain() {
+        let client = client();
+        let user = user();
+        let scopes = vec!["openid".to_string()];
+        let act = json!({ "sub": "backend", "iss": "http://localhost:9000" });
+        let claims = access_token_claims(&ClaimsInput {
+            issuer: "http://localhost:9000",
+            client: &client,
+            user: Some(&user),
+            scopes: &scopes,
+            nonce: None,
+            auth_time: 0,
+            session_id: None,
+            now: 0,
+            ttl_seconds: 60,
+            access_token: None,
+            act: Some(&act),
+            audience: None,
+            subject: None,
+        });
+        assert_eq!(claims["act"]["sub"], "backend");
+    }
+
+    #[test]
+    fn access_token_subject_and_audience_can_be_overridden() {
+        let client = client();
+        let scopes = vec!["openid".to_string()];
+        let audience = vec!["my-api".to_string()];
+        let claims = access_token_claims(&ClaimsInput {
+            issuer: "iss",
+            client: &client,
+            user: None,
+            scopes: &scopes,
+            nonce: None,
+            auth_time: 0,
+            session_id: None,
+            now: 0,
+            ttl_seconds: 60,
+            access_token: None,
+            act: None,
+            audience: Some(&audience),
+            subject: Some("some-service"),
+        });
+        assert_eq!(claims["sub"], "some-service");
+        assert_eq!(claims["aud"][0], "my-api");
     }
 
     #[test]
@@ -355,6 +426,9 @@ mod tests {
             now: 0,
             ttl_seconds: 60,
             access_token: None,
+            act: None,
+            audience: None,
+            subject: None,
         });
         assert_eq!(claims["sub"], "alice");
     }
@@ -374,6 +448,9 @@ mod tests {
             now: 10,
             ttl_seconds: 60,
             access_token: None,
+            act: None,
+            audience: None,
+            subject: None,
         });
         assert_eq!(claims["sub"], "my-spa");
         assert!(claims["roles"].is_null());

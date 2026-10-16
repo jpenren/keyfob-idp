@@ -75,8 +75,10 @@ Notes:
 
 - `grant_types_supported` is the union of the grants allowed by the configured
   clients (plus the internal UI client), in the order `authorization_code`,
-  `client_credentials`, `refresh_token`, `password`. `password` appears only
-  when `allow_password_grant: true` and a client allows it.
+  `client_credentials`, `refresh_token`, `password`,
+  `urn:ietf:params:oauth:grant-type:token-exchange`. `password` appears only
+  when `allow_password_grant: true` and a client allows it; token exchange only
+  when `allow_token_exchange: true` and a client allows it.
 - `scopes_supported` is the four standard scopes plus any additional scope named
   in a client's `allowed_scopes`.
 - `id_token_signing_alg_values_supported` is always `["RS256"]`.
@@ -199,6 +201,7 @@ Supported grants:
 | `client_credentials` | — | Requires a confidential client. Rejects `offline_access`. No ID token is issued. |
 | `refresh_token` | `refresh_token` | Optional `scope` may only narrow the original grant. Rotates by default; replaying a consumed token revokes the family. |
 | `password` | `username`, `password` | Deprecated ROPC grant. Only when `allow_password_grant: true` and the client lists `password`. |
+| `urn:ietf:params:oauth:grant-type:token-exchange` | `subject_token`, `subject_token_type` | RFC 8693 token exchange. Only when `allow_token_exchange: true` and the client lists `token_exchange`. Optional `actor_token` + `actor_token_type` (delegation), `requested_token_type`, `scope`, `resource`, `audience`. Always returns `issued_token_type` and never a `refresh_token`. |
 
 Example (client credentials):
 
@@ -235,6 +238,39 @@ An `id_token` is included when the request is bound to a user **and** the
 `openid` scope was granted (all grants except client credentials). A
 `refresh_token` is included only when the client allows the `refresh_token`
 grant and (for public clients) `offline_access` was granted.
+
+Example (token exchange, delegation):
+
+```sh
+curl -sS -X POST http://127.0.0.1:9000/token \
+  -d grant_type=urn:ietf:params:oauth:grant-type:token-exchange \
+  -d client_id=my-gateway \
+  -d client_secret=gateway-secret \
+  -d subject_token=<ACCESS_TOKEN> \
+  -d subject_token_type=urn:ietf:params:oauth:token-type:access_token \
+  -d actor_token=<ACTOR_ACCESS_TOKEN> \
+  -d actor_token_type=urn:ietf:params:oauth:token-type:access_token
+```
+
+```json
+{
+  "access_token": "eyJhbGciOiJSUzI1NiIsImtpZCI6Ik...",
+  "issued_token_type": "urn:ietf:params:oauth:token-type:access_token",
+  "token_type": "Bearer",
+  "expires_in": 900,
+  "scope": "openid profile"
+}
+```
+
+The subject token must be an unexpired token issued by this server. Accepted
+`*_token_type` values are `access_token`, `jwt`, `id_token` and `refresh_token`;
+a `refresh_token` subject must belong to the authenticating client, and a
+refresh token cannot be used as an actor. Scopes only ever narrow. Requested
+`resource` / `audience` values must match the client's configured `audience` (or
+its own `client_id`), otherwise the request fails with `invalid_target`. With an
+`actor_token` the issued access token carries an `act` claim (`sub` and `iss` of
+the actor, with the actor's own `act` nested inside); without one the server
+impersonates the subject.
 
 ## UserInfo
 
@@ -354,8 +390,9 @@ browser colour scheme and references no external assets.
 `/ui/info` fields include: `version`, `os`, `arch`, `uptime_seconds`,
 `started_at`, `config_path`, `config_loaded_at`, `config_last_attempt_at`,
 `config_error`, `warnings`, `issuer`, `tls`, `loopback`, `debug`,
-`allow_password_grant`, `login_mode`, `prefill_secrets`, `algorithm`, `kid`,
-`key_origin`, `grants`, `scopes`, `clients`, `users` and `endpoints`.
+`allow_password_grant`, `allow_token_exchange`, `login_mode`, `prefill_secrets`,
+`algorithm`, `kid`, `key_origin`, `grants`, `scopes`, `clients`, `users` and
+`endpoints`.
 
 Each client entry reports `client_id`, `type` (`internal`, `public` or
 `confidential`), `public`, `redirect_uris`, `post_logout_redirect_uris`,
@@ -420,11 +457,12 @@ authorization endpoint redirects the error back or shows an HTML page.
 | --- | --- | --- |
 | `invalid_request` | 400 | Missing or malformed parameter (for example missing `redirect_uri`, bad PKCE challenge, `max_age` not an integer). |
 | `invalid_client` | 401 | Unknown client, missing/incorrect secret, or a public client sending a secret. |
-| `invalid_grant` | 400 | Code/refresh token unknown, expired, already used, issued to another client, wrong redirect URI, or PKCE mismatch. |
+| `invalid_grant` | 400 | Code/refresh token unknown, expired, already used, issued to another client, wrong redirect URI, PKCE mismatch, or a token-exchange subject token that is invalid/expired/revoked or bound to another client. |
 | `unauthorized_client` | 400 | The client is not allowed to use the requested grant (or `client_credentials` on a public client). |
-| `unsupported_grant_type` | 400 | Unknown or disabled grant (for example `password` without `allow_password_grant`, or a device-code URN). |
+| `unsupported_grant_type` | 400 | Unknown or disabled grant (for example `password` without `allow_password_grant`, `token_exchange` without `allow_token_exchange`, or a device-code URN). |
 | `unsupported_response_type` | 400 | `response_type` other than `code` (implicit is not implemented). |
-| `invalid_scope` | 400 | A requested scope is not allowed for the client, scope narrowing adds a scope, or `offline_access` is used with client credentials. |
+| `invalid_scope` | 400 | A requested scope is not allowed for the client, scope narrowing adds a scope, or `offline_access` is used with client credentials or token exchange. |
+| `invalid_target` | 400 | Token exchange only: the requested `resource` / `audience` is not among the client's configured `audience` values. |
 | `access_denied` | 400 | Access was refused. |
 | `invalid_token` | 401 | `/userinfo` only: missing/expired/revoked token, an ID token instead of an access token, or no user. |
 | `insufficient_scope` | 403 | `/userinfo` only: the token lacks a required scope. |

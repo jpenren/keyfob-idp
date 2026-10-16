@@ -19,6 +19,8 @@ pub enum ErrorCode {
     UnsupportedGrantType,
     UnsupportedResponseType,
     InvalidScope,
+    /// RFC 8693 / RFC 8707: the requested `resource` / `audience` is not allowed.
+    InvalidTarget,
     AccessDenied,
     ServerError,
     /// OIDC userinfo / bearer token errors.
@@ -42,6 +44,7 @@ impl ErrorCode {
             Self::UnsupportedGrantType => "unsupported_grant_type",
             Self::UnsupportedResponseType => "unsupported_response_type",
             Self::InvalidScope => "invalid_scope",
+            Self::InvalidTarget => "invalid_target",
             Self::AccessDenied => "access_denied",
             Self::ServerError => "server_error",
             Self::InvalidToken => "invalid_token",
@@ -124,6 +127,10 @@ impl OAuthError {
     pub fn invalid_scope(description: impl Into<String>) -> Self {
         Self::new(ErrorCode::InvalidScope, description)
     }
+
+    pub fn invalid_target(description: impl Into<String>) -> Self {
+        Self::new(ErrorCode::InvalidTarget, description)
+    }
 }
 
 #[cfg(test)]
@@ -135,12 +142,14 @@ mod tests {
         assert_eq!(ErrorCode::InvalidGrant.as_str(), "invalid_grant");
         assert_eq!(ErrorCode::InvalidClient.as_str(), "invalid_client");
         assert_eq!(ErrorCode::LoginRequired.as_str(), "login_required");
+        assert_eq!(ErrorCode::InvalidTarget.as_str(), "invalid_target");
     }
 
     #[test]
     fn invalid_client_is_unauthorized() {
         assert_eq!(ErrorCode::InvalidClient.status(), 401);
         assert_eq!(ErrorCode::InvalidGrant.status(), 400);
+        assert_eq!(ErrorCode::InvalidTarget.status(), 400);
         assert_eq!(ErrorCode::ServerError.status(), 500);
     }
 

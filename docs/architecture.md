@@ -79,7 +79,8 @@ seconds to drop expired codes, refresh tokens, sessions and revocations.
 Domain logic, deliberately **axum-free**. [`src/oauth/error.rs`](../src/oauth/error.rs)
 defines `OAuthError` / `ErrorCode` with `.status()`; the HTTP layer decides
 whether an error becomes a JSON body or a redirect.
-[`src/oauth/token.rs`](../src/oauth/token.rs) implements the four grants,
+[`src/oauth/token.rs`](../src/oauth/token.rs) implements the standard grants plus
+RFC 8693 token exchange,
 [`src/oauth/authorize.rs`](../src/oauth/authorize.rs) validates authorization
 requests and mints codes, and [`src/oauth/auth.rs`](../src/oauth/auth.rs) handles
 client authentication.
@@ -151,11 +152,32 @@ rotated token records its **family**; replaying an already-used token revokes
 the entire family (`Store::revoke_refresh_family`) and returns `invalid_grant`.
 This is standard rotating-refresh-token replay detection.
 
+### Token Exchange (RFC 8693)
+
+```
+client ──POST /token (grant_type=urn:…:token-exchange)──▶ token
+          subject_token + subject_token_type
+          optional actor_token + actor_token_type
+          optional requested_token_type / scope / resource / audience
+```
+
+The exchange is gated twice: `allow_token_exchange: true` at the top level and
+`token_exchange` in the client's `grant_types`. The subject token is validated
+like an introspection target — JWT signature, issuer and `exp` against the
+request clock, then `jti` revocation for access tokens, or a store lookup for
+opaque refresh tokens (which must belong to the authenticating client and can
+never act as the actor). Scopes only ever narrow. `resource` / `audience` must
+match the client's configured `audience` (or its own `client_id`) or the request
+fails with `invalid_target`; when accepted, they override the access token `aud`.
+Without an `actor_token` the server impersonates the subject; with one it adds an
+`act` claim (`sub` and `iss` of the actor, with the actor's own `act` nested for
+a delegation chain). A refresh token is never minted.
+
 ### Token shapes
 
 | Token | Key claims |
 | --- | --- |
-| Access token | `iss`, `sub` (user or `client_id`), `aud` (defaults to `[client_id]`, or `client.audience`), `azp`, `client_id`, `scope`, `iat`, `nbf`, `exp`, `jti`, optional `sid`, plus identity claims. |
+| Access token | `iss`, `sub` (user or `client_id`), `aud` (defaults to `[client_id]`, or `client.audience`), `azp`, `client_id`, `scope`, `iat`, `nbf`, `exp`, `jti`, optional `sid` and `act` (delegation), plus identity claims. |
 | ID token | `iss`, `sub`, `aud` (= `client_id`), `azp`, `iat`, `exp`, `auth_time`, `jti`, optional `nonce`, `sid` and `at_hash`, plus identity claims. Only issued when the `openid` scope and a user are present. |
 | Userinfo | `sub` plus the identity claims allowed by the granted scopes. |
 
@@ -260,6 +282,13 @@ a new decision explicitly supersedes them.
     without knowing the tag. The version stays visible inside the archive
     (`keyfob-<tag>-<target>/`), and the workflow refuses to publish when the tag
     does not match `Cargo.toml`.
+22. **Token exchange is opt-in and never issues refresh tokens.** RFC 8693 is
+    gated behind `allow_token_exchange: true` plus the per-client
+    `token_exchange` grant, like the password grant. Only access tokens can be
+    requested, scopes never widen, `resource` / `audience` must be pre-approved
+    per client (`invalid_target` otherwise), and no refresh token is minted —
+    an exchange is a short-lived projection of an existing identity, not a new
+    session. Delegation is expressed with the standard `act` claim.
 
 ## Related reading
 

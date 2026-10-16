@@ -99,7 +99,7 @@ pub async fn ui_info(State(state): State<AppState>) -> Response {
                 "post_logout_redirect_uris": client.post_logout_redirect_uris,
                 "audience": client.audience,
                 "scopes": client.scopes(),
-                "grants": client.grants().iter().map(|g| g.as_str()).collect::<Vec<_>>(),
+                "grants": client.grants().iter().map(|g| g.config_name()).collect::<Vec<_>>(),
                 "auto_approve": client.auto_approve,
                 // Only ever exposed for a loopback development server.
                 "client_secret": if prefill { client.client_secret.clone() } else { None },
@@ -139,6 +139,7 @@ pub async fn ui_info(State(state): State<AppState>) -> Response {
             "loopback": loopback,
             "debug": runtime.config.debug,
             "allow_password_grant": runtime.config.allow_password_grant,
+            "allow_token_exchange": runtime.config.allow_token_exchange,
             "login_mode": match runtime.config.login.mode {
                 crate::config::LoginMode::Form => "form",
                 crate::config::LoginMode::Picker => "picker",

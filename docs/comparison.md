@@ -20,7 +20,7 @@ the trade-off explicit, not to argue that one is universally better.
 | Persistence of tokens/codes/sessions | In memory only (lost on restart) | Database-backed, survives restarts and failover | Depends on storage backend |
 | Clustering / high availability | None | Yes | Yes (with shared storage) |
 | Dynamic client registration (RFC 7591) | Not implemented | Yes | No (clients configured statically) |
-| Supported grants | Authorization code + PKCE, client credentials, refresh token, password (opt-in) | Broad (authorization code, client credentials, device, token exchange, …) | Authorization code (+ PKCE), client credentials, device, refresh token |
+| Supported grants | Authorization code + PKCE, client credentials, refresh token, password and token exchange (both opt-in) | Broad (authorization code, client credentials, device, token exchange, …) | Authorization code (+ PKCE), client credentials, device, refresh token |
 | Implicit flow | Not implemented (by design) | Available | Available |
 | Signing algorithms | RS256 only | RS256/RS384/RS512, ES*, PS*, HS*, EdDSA | RS256 (configurable) |
 | Admin UI | None (read-only info + token generator) | Full admin console | Minimal web UI |
@@ -73,8 +73,9 @@ Use something else if any of the following applies:
   single issuer; run a separate instance per issuer if you must.
 - **You need dynamic client registration (RFC 7591).** Clients are configured
   statically in the YAML. Not implemented.
-- **You need the device authorization grant (RFC 8628) or token exchange
-  (RFC 8693).** Not implemented yet.
+- **You need the device authorization grant (RFC 8628).** Not implemented.
+  Token exchange (RFC 8693) is available as an opt-in grant, but it only issues
+  access tokens — no `may_act`, no SAML or JWT assertions and no refresh tokens.
 - **You need signing algorithms other than RS256.** ES256 and EdDSA are planned
   but not available; only RS256 is accepted.
 - **You need federation, MFA, consent, password reset or a user admin UI.**

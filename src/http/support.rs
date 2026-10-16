@@ -44,6 +44,16 @@ impl Params {
             .map(|(_, value)| value.as_str())
     }
 
+    /// Every value for `key`, in order (for repeatable parameters such as the
+    /// RFC 8693 `audience`).
+    pub fn get_all(&self, key: &str) -> Vec<String> {
+        self.0
+            .iter()
+            .filter(|(candidate, _)| candidate == key)
+            .map(|(_, value)| value.clone())
+            .collect()
+    }
+
     /// All parameters in order, for rebuilding a URL.
     pub fn as_pairs(&self) -> &[(String, String)] {
         &self.0

@@ -73,6 +73,7 @@ impl Runtime {
             GrantType::ClientCredentials,
             GrantType::RefreshToken,
             GrantType::Password,
+            GrantType::TokenExchange,
         ] {
             if clients.iter().any(|client| client.allows_grant(grant))
                 && !grant_types_supported.iter().any(|g| g == grant.as_str())
@@ -316,6 +317,28 @@ users:
         assert_eq!(
             runtime.grant_types_supported,
             vec!["authorization_code", "client_credentials", "refresh_token"]
+        );
+    }
+
+    #[test]
+    fn token_exchange_is_advertised_by_its_urn() {
+        let config = config::parse_str(
+            r#"
+allow_token_exchange: true
+ui:
+  enabled: false
+clients:
+  - client_id: svc
+    client_secret: s
+    grant_types: [token_exchange]
+"#,
+            "test.yaml",
+        )
+        .unwrap();
+        let runtime = Runtime::build(config);
+        assert_eq!(
+            runtime.grant_types_supported,
+            vec!["urn:ietf:params:oauth:grant-type:token-exchange"]
         );
     }
 

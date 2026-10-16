@@ -132,6 +132,7 @@ The layer allows methods `GET`, `POST`, `OPTIONS` and the headers
 | --- | --- | --- | --- |
 | `debug` | boolean | `false` | Expose `GET /debug/tokens` with the 50 most recently issued tokens. Never enable this on a shared machine. |
 | `allow_password_grant` | boolean | `false` | Enable the deprecated Resource Owner Password Credentials grant. Required for any client whose grants include `password`. |
+| `allow_token_exchange` | boolean | `false` | Enable the Token Exchange grant (RFC 8693). Required for any client whose grants include `token_exchange`. |
 | `clients` | list | required | Client definitions (below). At least one is required. |
 | `users` | list | see below | User definitions. Required when `allow_password_grant` is true or any client allows `authorization_code`. |
 
@@ -169,14 +170,16 @@ When `grant_types` is omitted, grants are inferred from the client's shape in
 
 So a public SPA with a redirect URI gets `authorization_code` + `refresh_token`,
 and a confidential backend with no redirect URIs gets `client_credentials` +
-`refresh_token`. `password` is never inferred; it must be listed explicitly and
-requires `allow_password_grant: true`.
+`refresh_token`. `password` and `token_exchange` are never inferred; they must be
+listed explicitly and require `allow_password_grant: true` /
+`allow_token_exchange: true` respectively.
 
 Validation ties grants to the client shape:
 
 - `authorization_code` requires at least one `redirect_uris` entry;
 - `client_credentials` requires a confidential client (not `public: true`);
-- `password` requires `allow_password_grant: true` at the top level.
+- `password` requires `allow_password_grant: true` at the top level;
+- `token_exchange` requires `allow_token_exchange: true` at the top level.
 
 ### Scopes and `offline_access`
 
@@ -195,6 +198,20 @@ allows the `refresh_token` grant **and** either is confidential or requested
 
 - confidential clients get refresh tokens without asking;
 - public clients must include `offline_access` in the scope.
+
+The token exchange grant never mints a refresh token.
+
+### Token Exchange (RFC 8693)
+
+With `allow_token_exchange: true` and `token_exchange` in a client's
+`grant_types`, that client may trade a `subject_token` for a new access token at
+`POST /token` (see [endpoints](endpoints.md#post-token)). Supported subject and
+actor token types are `access_token`, `jwt`, `id_token` and `refresh_token`.
+Scopes are never widened, `resource` / `audience` must name one of the client's
+configured `audience` values (or its own `client_id`), and `offline_access` is
+always stripped. Supplying an `actor_token` produces delegation: the issued
+access token carries an `act` claim naming the actor; without one the exchange
+impersonates the subject.
 
 ## `users[]`
 
@@ -259,10 +276,10 @@ and in the file written by `keyfob init`.
 
 Custom claims may **not** override the claims owned by the provider (`iss`,
 `sub`, `aud`, `exp`, `iat`, `nbf`, `jti`, `auth_time`, `nonce`, `at_hash`,
-`azp`, `sid`, `scope`, `client_id`, `token_type`). Profile claims such as
-`name`, `preferred_username`, `email`, `email_verified`, `roles` and `groups`
-are only filled in from the user record when the custom claims do not already
-define them.
+`azp`, `sid`, `scope`, `client_id`, `token_type`, `act`, `may_act`). Profile
+claims such as `name`, `preferred_username`, `email`, `email_verified`, `roles`
+and `groups` are only filled in from the user record when the custom claims do
+not already define them.
 
 ## Environment variables
 
@@ -279,6 +296,7 @@ trimmed; an empty value is ignored.
 | `KEYFOB_TLS` | boolean | `server.tls` |
 | `KEYFOB_DEBUG` | boolean | `debug` |
 | `KEYFOB_ALLOW_PASSWORD_GRANT` | boolean | `allow_password_grant` |
+| `KEYFOB_ALLOW_TOKEN_EXCHANGE` | boolean | `allow_token_exchange` |
 | `KEYFOB_LOGIN_MODE` | `form`\|`picker`\|`auto` | `login.mode` |
 
 Boolean values accept `true`/`1`/`yes`/`on` and `false`/`0`/`no`/`off`
@@ -325,7 +343,8 @@ Two further variables are read outside the config loader:
   have one;
 - `allowed_scopes`, when present, must not be empty and must not contain empty
   entries;
-- authorization-code/clients/credentials/password rules described above;
+- authorization-code/client-credentials/password/token-exchange rules
+  described above;
 - every `redirect_uris` and `post_logout_redirect_uris` value must be a
   plausible absolute URI.
 

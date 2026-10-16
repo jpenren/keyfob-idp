@@ -29,6 +29,7 @@ server:
   port: {PORT}
 debug: true
 allow_password_grant: true
+allow_token_exchange: true
 login:
   mode: auto
   default_user: alice
@@ -47,6 +48,11 @@ clients:
     redirect_uris: ["{ISSUER}/cb"]
     allowed_scopes: [openid, profile, email, offline_access]
     grant_types: [password, authorization_code, refresh_token]
+  - client_id: exchanger
+    client_secret: exchanger-secret
+    grant_types: [token_exchange, client_credentials, refresh_token]
+    allowed_scopes: [openid, profile, email, offline_access]
+    audience: [backend]
 users:
   - username: alice
     password: alice123
@@ -221,6 +227,27 @@ async fn obtain_code(server: &TestServer, verifier: &str, nonce: &str) -> String
 
 const VERIFIER: &str = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM";
 
+/// A user access token for `alice` through the authorization code grant.
+async fn spa_access_token(server: &TestServer) -> String {
+    let code = obtain_code(server, VERIFIER, "n-1").await;
+    let token = server
+        .post_form(
+            "/token",
+            &[
+                ("grant_type", "authorization_code".into()),
+                ("client_id", "spa".into()),
+                ("code", code),
+                ("redirect_uri", server.url("/cb")),
+                ("code_verifier", VERIFIER.into()),
+            ],
+        )
+        .await
+        .json::<Value>()
+        .await
+        .unwrap();
+    token["access_token"].as_str().unwrap().to_string()
+}
+
 // ------------------------------------------------------------------- tests
 
 #[tokio::test]
@@ -240,6 +267,13 @@ async fn metadata_and_health_are_served() {
         format!("{}/token", server.base)
     );
     assert_eq!(discovery["jwks_uri"], format!("{}/jwks", server.base));
+    let grants = discovery["grant_types_supported"].as_array().unwrap();
+    assert!(
+        grants
+            .iter()
+            .any(|g| g == "urn:ietf:params:oauth:grant-type:token-exchange"),
+        "token exchange should be advertised"
+    );
 
     let oauth_metadata = server.get("/.well-known/oauth-authorization-server").await;
     assert_eq!(oauth_metadata.status(), 200);
@@ -748,6 +782,151 @@ async fn userinfo_returns_the_granted_claims() {
         .await
         .unwrap();
     assert_eq!(rejected.status(), 401);
+}
+
+#[tokio::test]
+async fn token_exchange_impersonates_a_user() {
+    let server = start_server(FULL_CONFIG).await;
+    let subject = spa_access_token(&server).await;
+
+    let response = server
+        .post_form(
+            "/token",
+            &[
+                (
+                    "grant_type",
+                    "urn:ietf:params:oauth:grant-type:token-exchange".into(),
+                ),
+                ("client_id", "exchanger".into()),
+                ("client_secret", "exchanger-secret".into()),
+                ("subject_token", subject),
+                (
+                    "subject_token_type",
+                    "urn:ietf:params:oauth:token-type:access_token".into(),
+                ),
+            ],
+        )
+        .await;
+    assert_eq!(response.status(), 200);
+    let body = response.json::<Value>().await.unwrap();
+    assert_eq!(
+        body["issued_token_type"],
+        "urn:ietf:params:oauth:token-type:access_token"
+    );
+    assert!(
+        body["refresh_token"].is_null(),
+        "no refresh token on exchange"
+    );
+
+    let claims = jwt_payload(body["access_token"].as_str().unwrap());
+    assert_eq!(claims["sub"], "alice");
+    assert_eq!(claims["client_id"], "exchanger");
+    assert_eq!(claims["iss"], server.base);
+    assert!(claims.get("act").is_none());
+}
+
+#[tokio::test]
+async fn token_exchange_reports_delegation_in_the_act_claim() {
+    let server = start_server(FULL_CONFIG).await;
+    let subject = spa_access_token(&server).await;
+    let actor = server
+        .post_form(
+            "/token",
+            &[
+                ("grant_type", "client_credentials".into()),
+                ("client_id", "backend".into()),
+                ("client_secret", "backend-secret".into()),
+                ("scope", "openid".into()),
+            ],
+        )
+        .await
+        .json::<Value>()
+        .await
+        .unwrap()["access_token"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let response = server
+        .post_form(
+            "/token",
+            &[
+                (
+                    "grant_type",
+                    "urn:ietf:params:oauth:grant-type:token-exchange".into(),
+                ),
+                ("client_id", "exchanger".into()),
+                ("client_secret", "exchanger-secret".into()),
+                ("subject_token", subject),
+                (
+                    "subject_token_type",
+                    "urn:ietf:params:oauth:token-type:access_token".into(),
+                ),
+                ("actor_token", actor),
+                (
+                    "actor_token_type",
+                    "urn:ietf:params:oauth:token-type:access_token".into(),
+                ),
+            ],
+        )
+        .await;
+    assert_eq!(response.status(), 200);
+    let body = response.json::<Value>().await.unwrap();
+    let claims = jwt_payload(body["access_token"].as_str().unwrap());
+    assert_eq!(claims["sub"], "alice");
+    assert_eq!(claims["act"]["sub"], "backend");
+    assert_eq!(claims["act"]["iss"], server.base);
+}
+
+#[tokio::test]
+async fn token_exchange_rejects_an_unknown_subject_token() {
+    let server = start_server(FULL_CONFIG).await;
+    let response = server
+        .post_form(
+            "/token",
+            &[
+                (
+                    "grant_type",
+                    "urn:ietf:params:oauth:grant-type:token-exchange".into(),
+                ),
+                ("client_id", "exchanger".into()),
+                ("client_secret", "exchanger-secret".into()),
+                ("subject_token", "not-a-token".into()),
+                (
+                    "subject_token_type",
+                    "urn:ietf:params:oauth:token-type:access_token".into(),
+                ),
+            ],
+        )
+        .await;
+    assert_eq!(response.status(), 400);
+    let body = response.json::<Value>().await.unwrap();
+    assert_eq!(body["error"], "invalid_grant");
+}
+
+#[tokio::test]
+async fn token_exchange_is_disabled_without_the_flag() {
+    let server = start_server(FORM_CONFIG).await;
+    let response = server
+        .post_form(
+            "/token",
+            &[
+                (
+                    "grant_type",
+                    "urn:ietf:params:oauth:grant-type:token-exchange".into(),
+                ),
+                ("client_id", "spa".into()),
+                ("subject_token", "whatever".into()),
+                (
+                    "subject_token_type",
+                    "urn:ietf:params:oauth:token-type:access_token".into(),
+                ),
+            ],
+        )
+        .await;
+    assert_eq!(response.status(), 400);
+    let body = response.json::<Value>().await.unwrap();
+    assert_eq!(body["error"], "unsupported_grant_type");
 }
 
 #[tokio::test]

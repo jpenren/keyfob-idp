@@ -169,6 +169,9 @@ fn apply_env(config: &mut Config) -> Result<(), ConfigError> {
     if let Some(value) = var("KEYFOB_ALLOW_PASSWORD_GRANT") {
         config.allow_password_grant = parse_bool("KEYFOB_ALLOW_PASSWORD_GRANT", &value)?;
     }
+    if let Some(value) = var("KEYFOB_ALLOW_TOKEN_EXCHANGE") {
+        config.allow_token_exchange = parse_bool("KEYFOB_ALLOW_TOKEN_EXCHANGE", &value)?;
+    }
     if let Some(value) = var("KEYFOB_LOGIN_MODE") {
         config.login.mode = match value.to_ascii_lowercase().as_str() {
             "form" => LoginMode::Form,
@@ -325,6 +328,12 @@ fn validate_clients(config: &Config, errors: &mut Vec<String>) {
                     errors.push(format!(
                         "clients[{index}].grant_types: the password grant requires \
                          `allow_password_grant: true` at the top level"
+                    ));
+                }
+                GrantType::TokenExchange if !config.allow_token_exchange => {
+                    errors.push(format!(
+                        "clients[{index}].grant_types: the token_exchange grant requires \
+                         `allow_token_exchange: true` at the top level"
                     ));
                 }
                 _ => {}
@@ -635,6 +644,26 @@ users:
         )
         .unwrap_err();
         assert!(err.to_string().contains("allow_password_grant: true"));
+    }
+
+    #[test]
+    fn token_exchange_grant_requires_global_flag() {
+        let err = parse_str(
+            "clients:\n  - client_id: svc\n    client_secret: s\n    grant_types: [token_exchange]",
+            "test.yaml",
+        )
+        .unwrap_err();
+        assert!(
+            err.to_string().contains("allow_token_exchange: true"),
+            "{err}"
+        );
+
+        // With the flag the same configuration is accepted.
+        parse_str(
+            "allow_token_exchange: true\nclients:\n  - client_id: svc\n    client_secret: s\n    grant_types: [token_exchange]",
+            "test.yaml",
+        )
+        .unwrap();
     }
 
     #[test]
