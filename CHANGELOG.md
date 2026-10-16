@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file. This projec
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-16
+
 ### Added
 
 - **Token exchange (RFC 8693)** as an opt-in grant: `allow_token_exchange: true` at the top level plus `token_exchange` in a client's `grant_types`. A client can trade an `access_token`, `jwt`, `id_token` or `refresh_token` subject for a new access token, with optional delegation via `actor_token` (the issued token carries an `act` claim, nesting the actor's own chain). Scopes only narrow, `resource` / `audience` must match the client's configured `audience` (otherwise `invalid_target`), `offline_access` is always stripped and no refresh token is ever issued. The token endpoint now returns `issued_token_type`. Advertised in discovery as `urn:ietf:params:oauth:grant-type:token-exchange`, with `KEYFOB_ALLOW_TOKEN_EXCHANGE` and an `allow_token_exchange` field in `/ui/info`.
@@ -32,5 +34,6 @@ All notable changes to this project will be documented in this file. This projec
 - CLI with `run`, `validate`, `init`, `hash-password`, `gen-keys` and `token`, plus optional TLS with a self-signed certificate.
 - Documentation under `docs/`, ready-to-run example configurations under `examples/` and a minimal `scratch`-based container image under `docker/`.
 
-[Unreleased]: https://github.com/OWNER/keyfob-idp/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/OWNER/keyfob-idp/releases/tag/v0.1.0
+[Unreleased]: https://github.com/jpenren/keyfob-idp/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/jpenren/keyfob-idp/releases/tag/v0.2.0
+[0.1.0]: https://github.com/jpenren/keyfob-idp/releases/tag/v0.1.0

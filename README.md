@@ -45,7 +45,7 @@ Download the binary for your platform from the
 
 Asset names are stable, so `.../releases/latest/download/<asset>` always points
 at the newest build; for a specific version replace `latest` with the tag
-(`.../releases/download/v0.1.0/keyfob-linux-x86_64.tar.gz`). Every archive
+(`.../releases/download/v0.2.0/keyfob-linux-x86_64.tar.gz`). Every archive
 unpacks to a `keyfob-<tag>-<target>/` directory holding the `keyfob` binary, the
 example configurations, the README and the licences.
 

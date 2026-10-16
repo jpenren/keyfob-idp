@@ -21,12 +21,12 @@ These defaults are intentional and are **not** considered vulnerabilities.
 
 ## Supported versions
 
-Only the latest `0.1.x` release line is supported with security fixes.
+Only the latest `0.2.x` release line is supported with security fixes.
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.1.x   | :white_check_mark: |
-| < 0.1.0 | :x:                |
+| 0.2.x   | :white_check_mark: |
+| < 0.2.0 | :x:                |
 
 ## Reporting a vulnerability
 
