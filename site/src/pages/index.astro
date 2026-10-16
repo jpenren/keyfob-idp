@@ -687,12 +687,14 @@ const releasesUrl = `${repoUrl}/releases/latest`;
         <div id="tab-linux" class="tab-content active">
           <div class="code-block-wrapper">
             <button class="copy-btn" data-copy="linux-code">Copy</button>
-            <pre id="linux-code"><code># Download the Linux x86_64 binary
-curl -LO {releasesUrl}/download/keyfob-linux-x86_64.tar.gz
-tar -xzf keyfob-linux-x86_64.tar.gz
-install -m 755 keyfob-*/keyfob ~/.local/bin/keyfob
+            <pre id="linux-code"><code># Recommended: Install automatically via shell script
+curl -fsSL https://jpenren.github.io/keyfob-idp/install.sh | sh
 
-# Initialize a default configuration and run
+# Or manual download:
+# curl -LO {releasesUrl}/download/keyfob-linux-x86_64.tar.gz
+# tar -xzf keyfob-linux-x86_64.tar.gz
+# install -m 755 keyfob-*/keyfob ~/.local/bin/keyfob
+
 keyfob init
 keyfob run</code></pre>
           </div>
@@ -701,12 +703,14 @@ keyfob run</code></pre>
         <div id="tab-macos" class="tab-content">
           <div class="code-block-wrapper">
             <button class="copy-btn" data-copy="macos-code">Copy</button>
-            <pre id="macos-code"><code># For Apple Silicon (M1/M2/M3/M4):
-curl -LO {releasesUrl}/download/keyfob-macos-arm64.tar.gz
-tar -xzf keyfob-macos-arm64.tar.gz
-install -m 755 keyfob-*/keyfob /usr/local/bin/keyfob
+            <pre id="macos-code"><code># Recommended: Install automatically (auto-detects Apple Silicon & Intel)
+curl -fsSL https://jpenren.github.io/keyfob-idp/install.sh | sh
 
-# Initialize and run
+# Or manual download for Apple Silicon (M1/M2/M3/M4):
+# curl -LO {releasesUrl}/download/keyfob-macos-arm64.tar.gz
+# tar -xzf keyfob-macos-arm64.tar.gz
+# install -m 755 keyfob-*/keyfob /usr/local/bin/keyfob
+
 keyfob init
 keyfob run</code></pre>
           </div>
@@ -715,11 +719,15 @@ keyfob run</code></pre>
         <div id="tab-windows" class="tab-content">
           <div class="code-block-wrapper">
             <button class="copy-btn" data-copy="win-code">Copy</button>
-            <pre id="win-code"><code># In PowerShell:
-Invoke-WebRequest -Uri "{releasesUrl}/download/keyfob-windows-x86_64.zip" -OutFile "keyfob.zip"
-Expand-Archive -Path "keyfob.zip" -DestinationPath "."
-.\keyfob-*\keyfob.exe init
-.\keyfob-*\keyfob.exe run</code></pre>
+            <pre id="win-code"><code># Recommended: Install automatically via PowerShell
+irm https://jpenren.github.io/keyfob-idp/install.ps1 | iex
+
+# Or manual download:
+# Invoke-WebRequest -Uri "{releasesUrl}/download/keyfob-windows-x86_64.zip" -OutFile "keyfob.zip"
+# Expand-Archive -Path "keyfob.zip" -DestinationPath "."
+
+keyfob.exe init
+keyfob.exe run</code></pre>
           </div>
         </div>
 

@@ -32,6 +32,22 @@ can try every flow without writing `curl`.
 
 ## Quick start
 
+### Automatic install (recommended)
+
+On Linux and macOS:
+
+```sh
+curl -fsSL https://jpenren.github.io/keyfob-idp/install.sh | sh
+```
+
+On Windows (PowerShell):
+
+```powershell
+irm https://jpenren.github.io/keyfob-idp/install.ps1 | iex
+```
+
+### Manual download
+
 Download the binary for your platform from the
 [latest release](https://github.com/jpenren/keyfob-idp/releases/latest):
 

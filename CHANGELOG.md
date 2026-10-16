@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file. This projec
 
 - Astro-based landing page in `site/` featuring responsive comparison metrics against Keycloak, feature highlights, interactive quickstart installation tabs, and configuration previews.
 - GitHub Pages deployment workflow (`.github/workflows/pages.yml`) to automatically build and publish the landing site on pushes to `main`.
+- Automated cross-platform installer scripts: `install.sh` for Linux and macOS (auto-detects architecture, verifies checksums, installs into `~/.local/bin` and checks PATH) and `install.ps1` for Windows PowerShell. Also hosted statically via GitHub Pages.
 
 
 ## [0.2.0] - 2026-10-16
