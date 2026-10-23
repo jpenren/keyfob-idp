@@ -440,7 +440,7 @@ network-exposed machine.
 ### `GET /healthz`
 
 ```json
-{ "status": "ok", "version": "0.2.0", "uptime_seconds": 42 }
+{ "status": "ok", "version": "0.2.1", "uptime_seconds": 42 }
 ```
 
 Always `200`, with `Cache-Control: no-store`.

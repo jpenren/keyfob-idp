@@ -26,7 +26,7 @@ Only the latest `0.2.x` release line is supported with security fixes.
 | Version | Supported          |
 | ------- | ------------------ |
 | 0.2.x   | :white_check_mark: |
-| < 0.2.0 | :x:                |
+| < 0.2.1 | :x:                |
 
 ## Reporting a vulnerability
 

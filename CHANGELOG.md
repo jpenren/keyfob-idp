@@ -4,12 +4,21 @@ All notable changes to this project will be documented in this file. This projec
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-23
+
 ### Added
 
 - Astro-based landing page in `site/` featuring responsive comparison metrics against Keycloak, feature highlights, interactive quickstart installation tabs, and configuration previews.
 - GitHub Pages deployment workflow (`.github/workflows/pages.yml`) to automatically build and publish the landing site on pushes to `main`.
-- Automated cross-platform installer scripts: `install.sh` for Linux and macOS (auto-detects architecture, verifies checksums, installs into `~/.local/bin` and checks PATH) and `install.ps1` for Windows PowerShell. Also hosted statically via GitHub Pages.
+- Automated cross-platform installer scripts: `install.sh` for Linux and macOS (auto-detects architecture, verifies checksums, installs into `~/.local/bin` and checks PATH) and `install.ps1` for Windows PowerShell. Also hosted statically via GitHub Pages, and documented in the README as the recommended way to install `keyfob`.
 
+### Changed
+
+- Updated the GitHub Actions used by the Pages workflow to their current majors (`actions/checkout@v7`, `actions/setup-node@v7`, `actions/upload-pages-artifact@v5`, `actions/deploy-pages@v5`).
+
+### Fixed
+
+- The landing page header now shows only the logo instead of repeating the project title next to it, and uses the dark logo for the navbar and favicon so the branding matches the site theme.
 
 ## [0.2.0] - 2026-10-16
 
@@ -41,6 +50,7 @@ All notable changes to this project will be documented in this file. This projec
 - CLI with `run`, `validate`, `init`, `hash-password`, `gen-keys` and `token`, plus optional TLS with a self-signed certificate.
 - Documentation under `docs/`, ready-to-run example configurations under `examples/` and a minimal `scratch`-based container image under `docker/`.
 
-[Unreleased]: https://github.com/jpenren/keyfob-idp/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/jpenren/keyfob-idp/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/jpenren/keyfob-idp/releases/tag/v0.2.1
 [0.2.0]: https://github.com/jpenren/keyfob-idp/releases/tag/v0.2.0
 [0.1.0]: https://github.com/jpenren/keyfob-idp/releases/tag/v0.1.0
