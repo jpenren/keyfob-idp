@@ -89,6 +89,7 @@ mod tests {
             allowed_scopes: scopes,
             grant_types: None,
             audience: vec![],
+            claims: std::collections::BTreeMap::new(),
             auto_approve: false,
         }
     }

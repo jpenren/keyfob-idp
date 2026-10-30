@@ -177,15 +177,17 @@ a delegation chain). A refresh token is never minted.
 
 | Token | Key claims |
 | --- | --- |
-| Access token | `iss`, `sub` (user or `client_id`), `aud` (defaults to `[client_id]`, or `client.audience`), `azp`, `client_id`, `scope`, `iat`, `nbf`, `exp`, `jti`, optional `sid` and `act` (delegation), plus identity claims. |
-| ID token | `iss`, `sub`, `aud` (= `client_id`), `azp`, `iat`, `exp`, `auth_time`, `jti`, optional `nonce`, `sid` and `at_hash`, plus identity claims. Only issued when the `openid` scope and a user are present. |
-| Userinfo | `sub` plus the identity claims allowed by the granted scopes. |
+| Access token | `iss`, `sub` (user or `client_id`), `aud` (defaults to `[client_id]`, or `client.audience`), `azp`, `client_id`, `scope`, `iat`, `nbf`, `exp`, `jti`, optional `sid` and `act` (delegation), plus identity and client claims. |
+| ID token | `iss`, `sub`, `aud` (= `client_id`), `azp`, `iat`, `exp`, `auth_time`, `jti`, optional `nonce`, `sid` and `at_hash`, plus identity and client claims. Only issued when the `openid` scope and a user are present. |
+| Userinfo | `sub` plus the identity claims allowed by the granted scopes and the client claims. |
 
 Identity claims are gated by scope: `profile` yields `preferred_username` /
 `name`, `email` yields `email` / `email_verified`. `roles` and `groups` and any
-custom `claims` are always included (this is a development tool). Custom claims
-cannot override reserved claims (`RESERVED_CLAIMS` in `oidc/claims.rs`). Claim
-values may contain minijinja templates such as `{{username}}@example.test`.
+custom `claims` (from the user or the client) are always included (this is a
+development tool). Custom claims cannot override reserved claims
+(`RESERVED_CLAIMS` in `oidc/claims.rs`). User claim values may contain minijinja
+templates such as `{{username}}@example.test`; client claim values are literal
+JSON.
 
 ## State, concurrency and hot reload
 

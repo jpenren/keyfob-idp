@@ -137,8 +137,9 @@ your client's `authority` / `issuer-uri` at it and you are done.
 - **Tokens**: RS256 access tokens and ID tokens with `nonce`, `at_hash`,
   `auth_time`, `sid` and `azp`; introspectable and revocable.
 - **Keycloak-style JWKS**: `/jwks` and the `/protocol/openid-connect/certs` alias.
-- **Users and claims**: login `form` / `picker` / `auto`, custom claims rendered
-  as minijinja templates, optional custom templates.
+- **Users and claims**: login `form` / `picker` / `auto`, custom user claims
+  rendered as minijinja templates and literal per-client claims, optional custom
+  templates.
 - **Dev ergonomics**: a token generator UI at `/`, hot reload of the YAML,
   `--tls` with a self-signed certificate, optional CORS and `/debug/tokens`.
 - **Zero runtime dependencies**: pure Rust, `ring`/`rustls` (no OpenSSL), no

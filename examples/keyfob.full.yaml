@@ -69,6 +69,13 @@ clients:
     grant_types: [client_credentials, refresh_token]
     allowed_scopes: [openid, profile]
     audience: [my-api]
+    # Per-client claims, merged into the access token, ID token and userinfo.
+    # Values are literal JSON (strings, lists or nested objects); use
+    # users[].claims for templated values.
+    claims:
+      app_grants:
+        - resource-a:read
+        - resource-b:read,write
 
   # Web application doing the full code flow server-side.
   - client_id: my-web

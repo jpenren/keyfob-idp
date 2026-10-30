@@ -39,10 +39,16 @@ clients:
     redirect_uris: ["{ISSUER}/cb", "{ISSUER}/ui/callback"]
     allowed_scopes: [openid, profile, email, offline_access]
     grant_types: [authorization_code, refresh_token]
+    claims:
+      tenant: dev
   - client_id: backend
     client_secret: backend-secret
     grant_types: [client_credentials, refresh_token]
     allowed_scopes: [openid, profile]
+    claims:
+      app_grants:
+        - resource-a:read
+        - resource-b:read,write
   - client_id: legacy
     client_secret: legacy-secret
     redirect_uris: ["{ISSUER}/cb"]
@@ -328,6 +334,10 @@ async fn client_credentials_grant_issues_an_access_token() {
     assert_eq!(claims["iss"], server.base);
     assert_eq!(claims["sub"], "backend");
     assert_eq!(claims["client_id"], "backend");
+    assert_eq!(
+        claims["app_grants"],
+        serde_json::json!(["resource-a:read", "resource-b:read,write"])
+    );
 }
 
 #[tokio::test]
@@ -771,6 +781,7 @@ async fn userinfo_returns_the_granted_claims() {
     assert_eq!(claims["sub"], "alice");
     assert_eq!(claims["preferred_username"], "alice");
     assert_eq!(claims["email"], "alice@example.test");
+    assert_eq!(claims["tenant"], "dev");
 
     // An ID token is not an access token and must be rejected.
     let id_token = token["id_token"].as_str().unwrap();

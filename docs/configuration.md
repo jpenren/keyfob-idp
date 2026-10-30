@@ -148,6 +148,7 @@ The layer allows methods `GET`, `POST`, `OPTIONS` and the headers
 | `allowed_scopes` | list of strings | `[openid, profile, email, offline_access]` | Scopes this client may request. Must not be empty or contain empty entries. |
 | `grant_types` | list of enum | inferred | Grants this client may use (see below). |
 | `audience` | list of strings | `[]` | Values placed in the access token `aud` claim. When empty, `aud` defaults to `[client_id]`. |
+| `claims` | map | `{}` | Extra claims merged into the access token, ID token and userinfo for this client. Values are literal JSON: strings, lists or nested objects (see below). |
 | `auto_approve` | boolean | `false` | Skip the login screen for this client and authenticate as `login.default_user` (or the first user). |
 
 URI validation is a light check that the value is an absolute URI with a valid
@@ -213,6 +214,31 @@ always stripped. Supplying an `actor_token` produces delegation: the issued
 access token carries an `act` claim naming the actor; without one the exchange
 impersonates the subject.
 
+### Client claims
+
+A client may define its own `claims`. They are merged into every token issued
+for that client: the access token, the ID token and `/userinfo`. Values are
+literal JSON — strings, lists, numbers, booleans or nested objects — and are
+**not** rendered as templates; use `users[].claims` for per-user templated
+values.
+
+```yaml
+clients:
+  - client_id: my-api
+    client_secret: dev-secret
+    grant_types: [client_credentials]
+    claims:
+      app_grants:
+        - resource-a:read
+        - resource-b:read,write
+```
+
+Precedence for non-reserved keys: client claims override the claims derived
+from the user record (`email`, `name`, `roles`, …) and the explicit
+`users[].claims`. Provider-owned claims (`iss`, `sub`, `aud`, …) always win.
+For `client_credentials` tokens there is no user, so the client claims are the
+only identity claims in the token.
+
 ## `users[]`
 
 | Key | Type | Default | Meaning |
@@ -223,7 +249,7 @@ impersonates the subject.
 | `name` | string | — | Value of the `name` claim. May be a minijinja template. |
 | `roles` | list of strings | `[]` | Value of the `roles` claim (always included when non-empty). |
 | `groups` | list of strings | `[]` | Value of the `groups` claim (always included when non-empty). |
-| `claims` | map | `{}` | Extra claims merged into the ID token and userinfo. String values are minijinja templates (see below). |
+| `claims` | map | `{}` | Extra claims merged into the access token, ID token and userinfo. String values are minijinja templates (see below). |
 
 Passwords starting with `$argon2` are verified with argon2; anything else is
 compared as plaintext using a constant-time comparison. Create a hash with

@@ -79,6 +79,18 @@ pub fn custom_claims(user: &UserCfg) -> Map<String, Value> {
     rendered
 }
 
+/// Values of the custom claims configured for a client.
+///
+/// Client claims are literal JSON values: they are not rendered as templates,
+/// because they describe the application rather than the signed-in user.
+pub fn custom_client_claims(client: &ClientCfg) -> Map<String, Value> {
+    client
+        .claims
+        .iter()
+        .map(|(key, value)| (key.clone(), value.clone()))
+        .collect()
+}
+
 /// The user's email with templates applied, if configured.
 pub fn resolved_email(user: &UserCfg) -> Option<String> {
     user.email
@@ -141,50 +153,65 @@ impl ClaimsInput<'_> {
     }
 }
 
-/// Identity claims gated by the granted scopes, plus roles/groups/custom claims
-/// which are always included (this is a development tool).
-fn identity_claims(user: Option<&UserCfg>, scopes: &[String]) -> Map<String, Value> {
+/// Identity claims gated by the granted scopes, plus roles/groups and the
+/// custom claims of the user and the client (always included, this is a
+/// development tool).
+///
+/// Precedence for non-reserved keys: explicit user claims override the claims
+/// derived from the user record, and client claims override both. Provider-owned
+/// claims (`RESERVED_CLAIMS`) are written afterwards and always win.
+fn identity_claims(
+    user: Option<&UserCfg>,
+    client: Option<&ClientCfg>,
+    scopes: &[String],
+) -> Map<String, Value> {
     let mut claims = Map::new();
-    let Some(user) = user else {
-        return claims;
-    };
+    if let Some(user) = user {
+        // Custom claims first: a user may override email or name explicitly.
+        for (key, value) in custom_claims(user) {
+            claims.insert(key, value);
+        }
 
-    // Custom claims first: a user may override email or name explicitly.
-    for (key, value) in custom_claims(user) {
-        claims.insert(key, value);
-    }
-
-    if has_scope(scopes, "profile") {
-        claims
-            .entry("preferred_username".to_string())
-            .or_insert_with(|| json!(user.username));
-        if let Some(name) = resolved_name(user) {
+        if has_scope(scopes, "profile") {
             claims
-                .entry("name".to_string())
-                .or_insert_with(|| json!(name));
+                .entry("preferred_username".to_string())
+                .or_insert_with(|| json!(user.username));
+            if let Some(name) = resolved_name(user) {
+                claims
+                    .entry("name".to_string())
+                    .or_insert_with(|| json!(name));
+            }
+        }
+
+        if has_scope(scopes, "email")
+            && let Some(email) = resolved_email(user)
+        {
+            claims
+                .entry("email".to_string())
+                .or_insert_with(|| json!(email));
+            claims
+                .entry("email_verified".to_string())
+                .or_insert(json!(true));
+        }
+
+        if !user.roles.is_empty() {
+            claims
+                .entry("roles".to_string())
+                .or_insert_with(|| json!(user.roles));
+        }
+        if !user.groups.is_empty() {
+            claims
+                .entry("groups".to_string())
+                .or_insert_with(|| json!(user.groups));
         }
     }
 
-    if has_scope(scopes, "email")
-        && let Some(email) = resolved_email(user)
-    {
-        claims
-            .entry("email".to_string())
-            .or_insert_with(|| json!(email));
-        claims
-            .entry("email_verified".to_string())
-            .or_insert(json!(true));
-    }
-
-    if !user.roles.is_empty() {
-        claims
-            .entry("roles".to_string())
-            .or_insert_with(|| json!(user.roles));
-    }
-    if !user.groups.is_empty() {
-        claims
-            .entry("groups".to_string())
-            .or_insert_with(|| json!(user.groups));
+    // Client claims last: a client may tailor a claim for its own application,
+    // and they are the only source for client_credentials tokens.
+    if let Some(client) = client {
+        for (key, value) in custom_client_claims(client) {
+            claims.insert(key, value);
+        }
     }
 
     claims
@@ -192,7 +219,7 @@ fn identity_claims(user: Option<&UserCfg>, scopes: &[String]) -> Map<String, Val
 
 /// Access token payload: JWT with `aud`, `scope`, `roles` and `groups`.
 pub fn access_token_claims(input: &ClaimsInput<'_>) -> Value {
-    let mut claims = identity_claims(input.user, input.scopes);
+    let mut claims = identity_claims(input.user, Some(input.client), input.scopes);
 
     claims.insert("iss".into(), json!(input.issuer));
     claims.insert("sub".into(), json!(input.subject()));
@@ -216,7 +243,7 @@ pub fn access_token_claims(input: &ClaimsInput<'_>) -> Value {
 
 /// ID token payload (OIDC Core 2).
 pub fn id_token_claims(input: &ClaimsInput<'_>) -> Value {
-    let mut claims = identity_claims(input.user, input.scopes);
+    let mut claims = identity_claims(input.user, Some(input.client), input.scopes);
 
     claims.insert("iss".into(), json!(input.issuer));
     claims.insert("sub".into(), json!(input.subject()));
@@ -239,9 +266,15 @@ pub fn id_token_claims(input: &ClaimsInput<'_>) -> Value {
     Value::Object(claims)
 }
 
-/// `/userinfo` payload: `sub` plus the claims allowed by the granted scopes.
-pub fn userinfo_claims(user: &UserCfg, scopes: &[String], subject: &str) -> Value {
-    let mut claims = identity_claims(Some(user), scopes);
+/// `/userinfo` payload: `sub` plus the claims allowed by the granted scopes and
+/// the claims of the client that owns the access token.
+pub fn userinfo_claims(
+    user: &UserCfg,
+    client: Option<&ClientCfg>,
+    scopes: &[String],
+    subject: &str,
+) -> Value {
+    let mut claims = identity_claims(Some(user), client, scopes);
     claims.insert("sub".to_string(), json!(subject));
     Value::Object(claims)
 }
@@ -281,6 +314,7 @@ mod tests {
             allowed_scopes: None,
             grant_types: None,
             audience: vec!["my-api".into()],
+            claims: std::collections::BTreeMap::new(),
             auto_approve: false,
         }
     }
@@ -459,12 +493,131 @@ mod tests {
     #[test]
     fn userinfo_only_exposes_granted_scopes() {
         let user = user();
-        let claims = userinfo_claims(&user, &["openid".to_string()], "alice");
+        let client = client();
+        let claims = userinfo_claims(&user, Some(&client), &["openid".to_string()], "alice");
         assert_eq!(claims["sub"], "alice");
         assert!(claims.get("email").is_none());
 
-        let claims = userinfo_claims(&user, &["openid".to_string(), "email".to_string()], "alice");
+        let claims = userinfo_claims(
+            &user,
+            Some(&client),
+            &["openid".to_string(), "email".to_string()],
+            "alice",
+        );
         assert_eq!(claims["email"], "alice@example.test");
+    }
+
+    fn client_with_claims() -> ClientCfg {
+        let mut client = client();
+        client.claims.insert(
+            "app_grants".into(),
+            json!(["resource-a:read", "resource-b:read,write"]),
+        );
+        client
+    }
+
+    #[test]
+    fn client_claims_reach_the_access_and_id_tokens() {
+        let client = client_with_claims();
+        let user = user();
+        let scopes = scopes();
+
+        let access = access_token_claims(&ClaimsInput {
+            issuer: "iss",
+            client: &client,
+            user: Some(&user),
+            scopes: &scopes,
+            nonce: None,
+            auth_time: 0,
+            session_id: None,
+            now: 0,
+            ttl_seconds: 60,
+            access_token: None,
+            act: None,
+            audience: None,
+            subject: None,
+        });
+        assert_eq!(
+            access["app_grants"],
+            json!(["resource-a:read", "resource-b:read,write"])
+        );
+
+        let id_token = id_token_claims(&ClaimsInput {
+            issuer: "iss",
+            client: &client,
+            user: Some(&user),
+            scopes: &scopes,
+            nonce: None,
+            auth_time: 0,
+            session_id: None,
+            now: 0,
+            ttl_seconds: 60,
+            access_token: None,
+            act: None,
+            audience: None,
+            subject: None,
+        });
+        assert_eq!(
+            id_token["app_grants"],
+            json!(["resource-a:read", "resource-b:read,write"])
+        );
+    }
+
+    #[test]
+    fn client_claims_are_the_only_identity_claims_for_client_credentials() {
+        let client = client_with_claims();
+        let claims = access_token_claims(&ClaimsInput {
+            issuer: "iss",
+            client: &client,
+            user: None,
+            scopes: &["openid".to_string()],
+            nonce: None,
+            auth_time: 0,
+            session_id: None,
+            now: 0,
+            ttl_seconds: 60,
+            access_token: None,
+            act: None,
+            audience: None,
+            subject: None,
+        });
+        assert_eq!(claims["app_grants"][0], "resource-a:read");
+        assert!(claims.get("email").is_none());
+    }
+
+    #[test]
+    fn client_claims_override_user_claims_but_not_reserved_ones() {
+        let mut client = client_with_claims();
+        client
+            .claims
+            .insert("department".into(), json!("client-eng"));
+        client.claims.insert("sub".into(), json!("evil"));
+        let user = user();
+        let scopes = scopes();
+        let claims = access_token_claims(&ClaimsInput {
+            issuer: "iss",
+            client: &client,
+            user: Some(&user),
+            scopes: &scopes,
+            nonce: None,
+            auth_time: 0,
+            session_id: None,
+            now: 0,
+            ttl_seconds: 60,
+            access_token: None,
+            act: None,
+            audience: None,
+            subject: None,
+        });
+        assert_eq!(claims["department"], "client-eng");
+        assert_eq!(claims["sub"], "alice");
+    }
+
+    #[test]
+    fn userinfo_includes_the_client_claims() {
+        let client = client_with_claims();
+        let claims = userinfo_claims(&user(), Some(&client), &["openid".to_string()], "alice");
+        assert_eq!(claims["app_grants"][1], "resource-b:read,write");
     }
 
     #[test]

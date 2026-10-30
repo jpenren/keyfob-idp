@@ -328,6 +328,11 @@ pub struct ClientCfg {
     /// Values used for the `aud` claim of issued access tokens.
     #[serde(default)]
     pub audience: Vec<String>,
+    /// Extra claims merged into the access token, ID token and userinfo for
+    /// this client. Values are literal JSON: strings, lists, numbers, booleans
+    /// or nested objects.
+    #[serde(default)]
+    pub claims: BTreeMap<String, serde_json::Value>,
     /// Skip the login screen for this client (uses `login.default_user`).
     #[serde(default)]
     pub auto_approve: bool,
@@ -429,5 +434,17 @@ mod tests {
     fn unknown_fields_are_rejected() {
         let err = serde_yaml_ng::from_str::<Config>("servere:\n  port: 1").unwrap_err();
         assert!(err.to_string().contains("servere"), "{err}");
+    }
+
+    #[test]
+    fn client_claims_accept_strings_and_lists() {
+        let cfg = serde_yaml_ng::from_str::<Config>(
+            "clients:\n  - client_id: api\n    claims:\n      tier: internal\n      app_grants:\n        - resource-a:read\n        - resource-b:read,write\n",
+        )
+        .unwrap();
+        let claims = &cfg.clients[0].claims;
+        assert_eq!(claims["tier"], "internal");
+        assert_eq!(claims["app_grants"][0], "resource-a:read");
+        assert_eq!(claims["app_grants"][1], "resource-b:read,write");
     }
 }

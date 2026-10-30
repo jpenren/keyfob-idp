@@ -143,6 +143,7 @@ pub fn internal_ui_client(issuer: &str) -> ClientCfg {
         allowed_scopes: Some(STANDARD_SCOPES.iter().map(|s| s.to_string()).collect()),
         grant_types: Some(vec![GrantType::AuthorizationCode, GrantType::RefreshToken]),
         audience: Vec::new(),
+        claims: std::collections::BTreeMap::new(),
         auto_approve: false,
     }
 }

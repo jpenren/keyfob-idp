@@ -130,12 +130,12 @@ pub async fn userinfo(
     };
 
     // Only access tokens carry `client_id`; an ID token must not be accepted.
-    if claims.get("client_id").and_then(Value::as_str).is_none() {
+    let Some(client_id) = claims.get("client_id").and_then(Value::as_str) else {
         return bearer_error_response(&OAuthError::new(
             ErrorCode::InvalidToken,
             "the token is not an access token",
         ));
-    }
+    };
     if let Some(jti) = claims.get("jti").and_then(Value::as_str)
         && state.store.is_access_token_revoked(jti).await
     {
@@ -165,7 +165,7 @@ pub async fn userinfo(
         .split_whitespace()
         .map(str::to_string)
         .collect();
-    let payload = crate::oidc::userinfo_claims(user, &scopes, subject);
+    let payload = crate::oidc::userinfo_claims(user, runtime.client(client_id), &scopes, subject);
     json_response(StatusCode::OK, payload)
 }
 
