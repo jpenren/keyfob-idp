@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file. This projec
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-30
+
+### Added
+
+- Per-client custom `claims` in `clients[]`, merged into the access token, ID token and `/userinfo`. Values are literal JSON (strings, lists, numbers, booleans or nested objects), so a client can expose data such as `app_grants` without user-level configuration. Client claims override user-derived claims with the same key, while provider-owned claims remain reserved.
+
 ## [0.2.1] - 2026-10-23
 
 ### Added
@@ -50,7 +56,8 @@ All notable changes to this project will be documented in this file. This projec
 - CLI with `run`, `validate`, `init`, `hash-password`, `gen-keys` and `token`, plus optional TLS with a self-signed certificate.
 - Documentation under `docs/`, ready-to-run example configurations under `examples/` and a minimal `scratch`-based container image under `docker/`.
 
-[Unreleased]: https://github.com/jpenren/keyfob-idp/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/jpenren/keyfob-idp/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/jpenren/keyfob-idp/releases/tag/v0.3.0
 [0.2.1]: https://github.com/jpenren/keyfob-idp/releases/tag/v0.2.1
 [0.2.0]: https://github.com/jpenren/keyfob-idp/releases/tag/v0.2.0
 [0.1.0]: https://github.com/jpenren/keyfob-idp/releases/tag/v0.1.0

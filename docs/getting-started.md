@@ -90,7 +90,7 @@ The quickest way is to download a prebuilt binary from the
 `keyfob-macos-arm64.tar.gz` or `keyfob-macos-x86_64.tar.gz`; sources are
 `keyfob-src.tar.gz` / `keyfob-src.zip`). Asset names are stable, so
 `.../releases/latest/download/<asset>` always points at the newest build —
-replace `latest` with a tag such as `v0.2.1` to pin a version. Each archive
+replace `latest` with a tag such as `v0.3.0` to pin a version. Each archive
 unpacks to a `keyfob-<tag>-<target>/` directory holding the `keyfob` binary, the
 example configurations, the README and the licences:
 
